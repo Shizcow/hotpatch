@@ -5,20 +5,20 @@ pub use lazy_static::lazy_static;
 use std::sync::RwLock;
 use simple_error::bail;
 
-struct PatchableInternal {
-    ptr: fn() -> i32,
+struct PatchableInternal<Args, Ret> {
+    ptr: fn(Args) -> Ret,
     libs: Vec<libloading::Library>, // TODO: make into a reference or RC or something
 }
 
-impl PatchableInternal {
-    pub fn new(ptr: fn() -> i32) -> Self {
+impl<Args: 'static, Ret: 'static> PatchableInternal<Args, Ret> {
+    pub fn new(ptr: fn(Args) -> Ret) -> Self {
 	Self{ptr, libs: vec![]}
     }
     pub fn hotpatch(&mut self, lib_name: &str, mpath: &str) -> Result<(), Box<dyn std::error::Error>> {
 	unsafe {
 	    let lib = 
 		libloading::Library::new(lib_name).unwrap();
-            let exports: libloading::Symbol<*mut phf::Map<&'static str, fn() -> i32>>
+            let exports: libloading::Symbol<*mut phf::Map<&'static str, fn(Args) -> Ret>>
 		= lib.get(b"HOTPATCH_EXPORTS")?;
 	    self.ptr = match (**exports).get(mpath) {
 		Some(p) => *p,
@@ -30,32 +30,32 @@ impl PatchableInternal {
     }
 }
 
-pub struct Patchable {
-    r: RwLock<PatchableInternal>,
+pub struct Patchable<Args, Ret> {
+    r: RwLock<PatchableInternal<Args, Ret>>,
     mpath: &'static str,
 }
 
-impl Patchable {
-    pub fn new(ptr: fn() -> i32, mpath: &'static str) -> Self {
+impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
+    pub fn new(ptr: fn(Args) -> Ret, mpath: &'static str) -> Self {
 	Self{r: RwLock::new(PatchableInternal::new(ptr)), mpath: mpath.trim_start_matches(|c| c!=':')}
     }
     pub fn hotpatch(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.r.write()?.hotpatch(lib_name, self.mpath)
     }
 }
-impl FnOnce<()> for Patchable {
-    type Output = i32;
-    extern "rust-call" fn call_once(self, _: ()) -> <Self as std::ops::FnOnce<()>>::Output {
-	(self.r.read().unwrap().ptr)()
+impl<Args, Ret> FnOnce<Args> for Patchable<Args, Ret> {
+    type Output = Ret;
+    extern "rust-call" fn call_once(self, args: Args) -> <Self as std::ops::FnOnce<Args>>::Output {
+	(self.r.read().unwrap().ptr)(args)
     }
 }
-impl FnMut<()> for Patchable {
-    extern "rust-call" fn call_mut(&mut self, _: ()) -> <Self as std::ops::FnOnce<()>>::Output {
-	(self.r.read().unwrap().ptr)()
+impl<Args, Ret> FnMut<Args> for Patchable<Args, Ret> {
+    extern "rust-call" fn call_mut(&mut self, args: Args) -> <Self as std::ops::FnOnce<Args>>::Output {
+	(self.r.read().unwrap().ptr)(args)
     }
 }
-impl Fn<()> for Patchable {
-    extern "rust-call" fn call(&self, _: ()) -> <Self as std::ops::FnOnce<()>>::Output {
-	(self.r.read().unwrap().ptr)()
+impl<Args, Ret> Fn<Args> for Patchable<Args, Ret> {
+    extern "rust-call" fn call(&self, args: Args) -> <Self as std::ops::FnOnce<Args>>::Output {
+	(self.r.read().unwrap().ptr)(args)
     }
 }

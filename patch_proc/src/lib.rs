@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
-use syn::{ItemFn, parse::Nothing, Ident};
+use syn::{ItemFn, parse::Nothing, Ident, ReturnType::Type, FnArg::Typed};
 
 #[proc_macro_attribute]
 pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
@@ -13,6 +13,20 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
     item.sig.ident = Ident::new(&format!("patch_proc_source_{}", fn_name),
 				Span::call_site());
     let newident = item.sig.ident.clone();
+    let output_type = if let Type(_, t) = &item.sig.output {
+	*(t.clone())
+    } else {
+	syn::parse2::<syn::Type>(quote!{
+	    ()
+	}).unwrap()
+    };
+
+    let mut args = vec![];
+    for i in 0..item.sig.inputs.len() {
+	if let Typed(arg) = &item.sig.inputs[i] {
+	    args.push(arg.ty.clone());
+	}
+    }
     
     TokenStream::from(quote!{
 	const fn #modpathname() -> &'static str {
@@ -21,7 +35,7 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
 
 	patchable::lazy_static! {
 	    #[allow(non_upper_case_globals)] // ree
-	    pub static ref #fn_name: patchable::Patchable = patchable::Patchable::new(#newident, #modpathname());
+	    pub static ref #fn_name: patchable::Patchable<(#(#args),*), #output_type> = patchable::Patchable::new(#newident, #modpathname());
 	}
 
 	#item
