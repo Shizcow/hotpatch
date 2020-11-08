@@ -1,47 +1,73 @@
-use std::collections::HashMap;
+#![feature(unboxed_closures)]
+#![feature(fn_traits)]
+
 use std::sync::RwLock;
 
-lazy_static::lazy_static! {
-    static ref HOTPATCH_IMPORTS: RwLock<HashMap<String, fn() -> i32>> = {
-	let mut m: HashMap<String, fn() -> i32> = HashMap::new();
-	m.insert("::foo".to_owned(), foo);
-	RwLock::new(m)
-    };
-    static ref LIB: libloading::Library =
-	libloading::Library::new("../src_obj/target/debug/libsrc_obj.so").unwrap();
+struct PatchableInternal {
+    ptr: fn() -> i32,
+    libs: Vec<libloading::Library>, // TODO: make into a reference or RC or something
 }
 
-fn foo() -> i32 {
+impl PatchableInternal {
+    pub fn new(ptr: fn() -> i32) -> Self {
+	Self{ptr, libs: vec![]}
+    }
+    pub fn hotpatch(&mut self, lib_name: &str, mpath: &str) -> Result<(), Box<dyn std::error::Error>> {
+	unsafe {
+	    let lib = 
+		libloading::Library::new(lib_name).unwrap();
+            let exports: libloading::Symbol<*mut phf::Map<&'static str, fn() -> i32>>
+		= lib.get(b"HOTPATCH_EXPORTS")?;
+	    self.ptr = *(**exports).get(mpath).unwrap();
+	    self.libs.push(lib);
+	}
+	Ok(())
+    }
+}
+
+struct Patchable {
+    r: RwLock<PatchableInternal>,
+    mpath: &'static str,
+}
+
+impl Patchable {
+    pub fn new(ptr: fn() -> i32, mpath: &'static str) -> Self {
+	Self{r: RwLock::new(PatchableInternal::new(ptr)), mpath}
+    }
+    pub fn hotpatch(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+	self.r.write()?.hotpatch(lib_name, self.mpath)
+    }
+}
+impl FnOnce<()> for Patchable {
+    type Output = i32;
+    extern "rust-call" fn call_once(self, _: ()) -> <Self as std::ops::FnOnce<()>>::Output {
+	(self.r.read().unwrap().ptr)()
+    }
+}
+impl FnMut<()> for Patchable {
+    extern "rust-call" fn call_mut(&mut self, _: ()) -> <Self as std::ops::FnOnce<()>>::Output {
+	(self.r.read().unwrap().ptr)()
+    }
+}
+impl Fn<()> for Patchable {
+    extern "rust-call" fn call(&self, _: ()) -> <Self as std::ops::FnOnce<()>>::Output {
+	(self.r.read().unwrap().ptr)()
+    }
+}
+    
+lazy_static::lazy_static! {
+    #[allow(non_upper_case_globals)] // ree
+    static ref foo: Patchable = Patchable::new(patchable_source_foo, "::foo");
+}
+
+fn patchable_source_foo() -> i32 {
     println!("I am from source");
     0
 }
 
-
-fn dispatch(fun_name: &str) -> Result<i32, Box<dyn std::error::Error>> {
-    match HOTPATCH_IMPORTS.read()?.get(fun_name) {
-	None => simple_error::bail!(format!("No importable function named {} found", fun_name)),
-	Some(ptr) => return Ok(ptr()),
-    }
-}
-
-
-fn cc(fun_name: &str) -> Result<fn() -> i32, Box<dyn std::error::Error>> {
-    unsafe {
-        let exports: libloading::Symbol<*mut phf::Map<&'static str, fn() -> i32>>
-	    = LIB.get(b"HOTPATCH_EXPORTS")?;
-	Ok(*(**exports).get(fun_name).unwrap())
-    }
-}
-
-fn hotpatch(fun_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let new_ptr = cc(fun_name)?;
-    HOTPATCH_IMPORTS.write()?.insert(fun_name.to_owned(), new_ptr);
-    Ok(())
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    dispatch("::foo")?;
-    hotpatch("::foo")?;
-    dispatch("::foo")?;
+    foo();
+    foo.hotpatch("../src_obj/target/debug/libsrc_obj.so")?;
+    foo();
     Ok(())
 }
