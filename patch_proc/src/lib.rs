@@ -44,48 +44,31 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     inline_fn.sig.inputs.clear();
 
-    if args.len() > 0 {
+    let fargs = syn::parse2::<syn::Type>(
+	if args.len() == 0 {quote!{
+	    ()
+	}} else {quote!{
+	    (#(#args),*,)
+	}}).unwrap();
 	
-	inline_fn.sig.inputs.push(syn::parse2::<syn::FnArg>(quote!{
-	    args: (#(#args),*,)
-	}).unwrap());
+    inline_fn.sig.inputs.push(syn::parse2::<syn::FnArg>(quote!{
+	args: #fargs
+    }).unwrap());
+
+    TokenStream::from(quote!{
+	const fn #modpathname() -> &'static str {
+	    concat!(module_path!(), "::foo")
+	}
+
+	patchable::lazy_static! {
+	    #[allow(non_upper_case_globals)] // ree
+	    pub static ref #fn_name: patchable::Patchable<#fargs, #output_type> = patchable::Patchable::new(#inlineident, #modpathname());
+	}
+
+	#inline_fn
+
+	#[inline(always)]
+	#item
+    })
 	
-	TokenStream::from(quote!{
-	    const fn #modpathname() -> &'static str {
-		concat!(module_path!(), "::foo")
-	    }
-
-	    patchable::lazy_static! {
-		#[allow(non_upper_case_globals)] // ree
-		pub static ref #fn_name: patchable::Patchable<(#(#args),*,), #output_type> = patchable::Patchable::new(#inlineident, #modpathname());
-	    }
-
-	    #inline_fn
-
-	    #[inline(always)]
-	    #item
-	})
-    } else  { // special care for the unit type
-	inline_fn.sig.inputs.push(syn::parse2::<syn::FnArg>(quote!{
-	    args: ()
-	}).unwrap());
-	
-	TokenStream::from(quote!{
-	    const fn #modpathname() -> &'static str {
-		concat!(module_path!(), "::foo")
-	    }
-
-	    patchable::lazy_static! {
-		#[allow(non_upper_case_globals)] // ree
-		pub static ref #fn_name: patchable::Patchable<(), #output_type> = patchable::Patchable::new(#inlineident, #modpathname());
-	    }
-
-	    #inline_fn
-
-	    #[inline(always)]
-	    #item
-	})
-    }
-    
-    
 }

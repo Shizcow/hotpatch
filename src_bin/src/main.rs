@@ -1,14 +1,14 @@
 use patch_proc::patchable;
 
 #[patchable]
-fn foo() -> i32 {
+fn foo(a: i32, b: i32) -> i32 {
     println!("I am from source. I have: ");
     0
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    foo(); // prints "I am from source"
+    foo(1, 2); // prints "I am from source"
     foo.hotpatch("../src_obj/target/debug/libsrc_obj.so")?;
-    foo(); // prints something totally different
+    foo(2, 3); // prints something totally different
     Ok(())
 }
