@@ -1,0 +1,13 @@
+[package]
+name = "src_obj"
+version = "0.1.0"
+authors = ["Shizcow <pohl.devin@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "src_obj"
+crate-type = ["dylib"]
+
+[dependencies]
+libc = "0.2.0"
+phf = { version = "0.8", features = ["macros"] }
