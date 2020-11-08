@@ -10,6 +10,10 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
     let fn_name = item.sig.ident.clone();
     let modpathname = Ident::new(&format!("patch_proc_mod_path_{}", fn_name),
 				 Span::call_site());
+    let mut inline_fn = item.clone();
+    inline_fn.sig.ident = Ident::new(&format!("patch_proc_inline_{}", fn_name),
+				     Span::call_site());
+    let inlineident = inline_fn.sig.ident.clone();
     item.sig.ident = Ident::new(&format!("patch_proc_source_{}", fn_name),
 				Span::call_site());
     let newident = item.sig.ident.clone();
@@ -27,17 +31,61 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
 	    args.push(arg.ty.clone());
 	}
     }
+
+    let argnums = args.iter().enumerate().map(
+	|(i, _)| syn::parse::<syn::LitInt>(i.to_string().parse::<TokenStream>().unwrap()).unwrap()
+    ).collect::<Vec<syn::LitInt>>();
     
-    TokenStream::from(quote!{
-	const fn #modpathname() -> &'static str {
-	    concat!(module_path!(), "::foo")
+    *inline_fn.block = syn::parse2::<syn::Block>(quote!{
+	{
+	    #newident (#(args.#argnums),*)
 	}
+    }).unwrap();
 
-	patchable::lazy_static! {
-	    #[allow(non_upper_case_globals)] // ree
-	    pub static ref #fn_name: patchable::Patchable<(#(#args),*), #output_type> = patchable::Patchable::new(#newident, #modpathname());
-	}
+    inline_fn.sig.inputs.clear();
 
-	#item
-    })
+    if args.len() > 0 {
+	
+	inline_fn.sig.inputs.push(syn::parse2::<syn::FnArg>(quote!{
+	    args: (#(#args),*,)
+	}).unwrap());
+	
+	TokenStream::from(quote!{
+	    const fn #modpathname() -> &'static str {
+		concat!(module_path!(), "::foo")
+	    }
+
+	    patchable::lazy_static! {
+		#[allow(non_upper_case_globals)] // ree
+		pub static ref #fn_name: patchable::Patchable<(#(#args),*,), #output_type> = patchable::Patchable::new(#inlineident, #modpathname());
+	    }
+
+	    #inline_fn
+
+	    #[inline(always)]
+	    #item
+	})
+    } else  { // special care for the unit type
+	inline_fn.sig.inputs.push(syn::parse2::<syn::FnArg>(quote!{
+	    args: ()
+	}).unwrap());
+	
+	TokenStream::from(quote!{
+	    const fn #modpathname() -> &'static str {
+		concat!(module_path!(), "::foo")
+	    }
+
+	    patchable::lazy_static! {
+		#[allow(non_upper_case_globals)] // ree
+		pub static ref #fn_name: patchable::Patchable<(), #output_type> = patchable::Patchable::new(#inlineident, #modpathname());
+	    }
+
+	    #inline_fn
+
+	    #[inline(always)]
+	    #item
+	})
+    }
+    
+    
 }
