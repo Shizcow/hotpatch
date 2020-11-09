@@ -1,6 +1,6 @@
 # hotpatch
 
-CHaning function definitions at runtime.
+Chaning function definitions at runtime.
 
 Key features:
 - Thread safe
@@ -25,6 +25,10 @@ Key features:
 - Finalize module-aware functionality
 - Embed type information in exports for increased saftey
   (can't hotpatch with an incorrect function signature)
+- Find a more efficient way of storing `libloading::Library` objects to remove duplicates
+  - Can we just keep the `libloading::Symbol` and drop the library?
+  - maybe a global static with the libs and track live references?
+  - Are duplicates magically optimized away?
 - Optional macro arguements to override automatic module handling (on both ends?)
 - Seperate nightly vs non-nightly features and use features to enable
 - Docs
