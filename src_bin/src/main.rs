@@ -3,8 +3,8 @@ use patch_proc::patchable;
 mod a {
     use patch_proc::patchable;
     #[patchable]
-    fn bar() {
-	println!("I am from source bar.");
+    fn bar(a: i32) {
+	println!("I am from source bar. I have {} as an arg.", a);
     }
 }
     
@@ -19,8 +19,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     foo(); // prints something totally different
 
     use crate::a::bar;
-    bar();
+    bar(1);
     bar.hotpatch("../src_obj/target/debug/libsrc_obj.so")?;
-    bar();
+    bar(2);
     Ok(())
 }
