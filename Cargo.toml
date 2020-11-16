@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "hotpatch",
+    "hotpatch_macros",
+    "examples/hello_world/src_bin",
+    "examples/hello_world/src_obj",
+]

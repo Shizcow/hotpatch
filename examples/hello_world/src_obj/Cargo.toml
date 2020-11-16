@@ -9,5 +9,4 @@ name = "src_obj"
 crate-type = ["dylib"]
 
 [dependencies]
-libc = "0.2.0"
-hotpatch = {path = "../hotpatch"}
+hotpatch = {path = "../../../hotpatch"}

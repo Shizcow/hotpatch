@@ -15,9 +15,6 @@ Key features:
 - `patch_proc`: proc macro stuff
 
 ## TODO
-- Fix project structure
-  - Workspaces
-  - Proper .gitignore
 - Investigate if a linker object can have `::` in its name, and if so how to mangle that in
 - Library/proc\_macros for alternative definitions (like `src_obj`)
 - Find a more efficient way of storing `libloading::Library` objects to remove duplicates

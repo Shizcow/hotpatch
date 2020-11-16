@@ -1,0 +1,11 @@
+# editor files
+*~
+\#*\#
+.\#*
+
+**/target/
+
+Cargo.lock
+**/*Cargo.lock
+
+**/*.rs.bk
