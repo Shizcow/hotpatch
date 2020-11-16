@@ -14,8 +14,6 @@ pub fn patch(attr: TokenStream, input: TokenStream) -> TokenStream {
     syn::parse_macro_input!(attr as Nothing); // I take no args
     let mut item = syn::parse::<ItemFn>(input).unwrap();
     let fn_name = item.sig.ident.clone();
-    let modpathname = Ident::new(&format!("patch_proc_mod_path_{}", fn_name),
-				 Span::call_site());
     let mut inline_fn = item.clone();
     inline_fn.sig.ident = Ident::new(&format!("patch_proc_inline_{}", fn_name),
 				     Span::call_site());
@@ -87,14 +85,10 @@ pub fn patch(attr: TokenStream, input: TokenStream) -> TokenStream {
 
 
     TokenStream::from(quote!{
-	const fn #modpathname() -> &'static str {
-	    concat!(module_path!(), "::", stringify!(#fn_name))
-	}
-
 	#[no_mangle]
-	pub static #hotpatch_name: HotpatchExport<fn(#fargs) -> #output_type> =
-	    HotpatchExport{ptr: #inlineident,
-			   symbol: #modpathname(),
+	pub static #hotpatch_name: patchable::HotpatchExport<fn(#fargs) -> #output_type> =
+	    patchable::HotpatchExport{ptr: #inlineident,
+			   symbol: concat!(module_path!(), "::", stringify!(#fn_name)),
 			   sig: #sigtext};
 
 	#inline_fn
@@ -109,8 +103,6 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
     syn::parse_macro_input!(attr as Nothing); // I take no args
     let mut item = syn::parse::<ItemFn>(input).unwrap();
     let fn_name = item.sig.ident.clone();
-    let modpathname = Ident::new(&format!("patch_proc_mod_path_{}", fn_name),
-				 Span::call_site());
     let mut inline_fn = item.clone();
     inline_fn.sig.ident = Ident::new(&format!("patch_proc_inline_{}", fn_name),
 				     Span::call_site());
@@ -172,13 +164,9 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
     }).unwrap());
 
     TokenStream::from(quote!{
-	const fn #modpathname() -> &'static str {
-	    concat!(module_path!(), "::", stringify!(#fn_name))
-	}
-
 	patchable::lazy_static! {
 	    #[allow(non_upper_case_globals)] // ree
-	    pub static ref #fn_name: patchable::Patchable<#fargs, #output_type> = patchable::Patchable::new(#inlineident, #modpathname(), #sigtext);
+	    pub static ref #fn_name: patchable::Patchable<#fargs, #output_type> = patchable::Patchable::new(#inlineident, concat!(module_path!(), "::", stringify!(#fn_name)), #sigtext);
 	}
 
 	#inline_fn
