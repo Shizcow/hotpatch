@@ -80,7 +80,7 @@ pub fn patch(attr: TokenStream, input: TokenStream) -> TokenStream {
 	}
 
 	#[no_mangle]
-	pub static #hotpatch_name: HotpatchExport<fn(()) -> i32> =
+	pub static #hotpatch_name: HotpatchExport<fn(#fargs) -> #output_type> =
 	    HotpatchExport{ptr: #inlineident,
 			   symbol: #modpathname(),
 			   sig: #sigtext};
