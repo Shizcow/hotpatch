@@ -9,5 +9,5 @@ pub fn foo(args: ()) -> i32 {
 pub static __HOTPATCH_EXPORT_0: HotpatchExport<fn(()) -> i32> =
     HotpatchExport{ptr: foo,
 		   symbol: "::foo",
-		   sig: "fn(()) -> i32"};
+		   sig: "fn() -> i32"};
 

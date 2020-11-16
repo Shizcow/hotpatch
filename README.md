@@ -22,8 +22,6 @@ Key features:
 - Investigate if a linker object can have `::` in its name, and if so how to mangle that in
 - Library/proc\_macros for alternative definitions (like `src_obj`)
 - Finalize module-aware functionality
-- Embed type information in exports for increased saftey
-  (can't hotpatch with an incorrect function signature)
 - Find a more efficient way of storing `libloading::Library` objects to remove duplicates
   - Can we just keep the `libloading::Symbol` and drop the library?
   - maybe a global static with the libs and track live references?

@@ -37,6 +37,7 @@ version = "0.1.0"
 dependencies = [
  "lazy_static",
  "libloading",
+ "simple-error",
 ]
 
 [[package]]
@@ -56,6 +57,12 @@ checksum = "aa563d17ecb180e500da1cfd2b028310ac758de548efdd203e18f283af693f37"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "simple-error"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "634bf7bc1315698154cb1b45c1db17fcd2e5ce41f925b7b4063e971536714bf1"
 
 [[package]]
 name = "src_bin"

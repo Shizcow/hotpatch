@@ -1,6 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
+use quote::ToTokens;
 use syn::{ItemFn, parse::Nothing, Ident, ReturnType::Type, FnArg::Typed};
 
 #[proc_macro_attribute]
@@ -24,6 +25,21 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
 	    ()
 	}).unwrap()
     };
+
+    let mut ts = proc_macro2::TokenStream::new();
+    output_type.to_tokens(&mut ts);
+
+    let sigtext = format!("fn({}) -> {}", item.sig.inputs.clone().into_iter().map(
+	|input| {
+	    if let syn::FnArg::Typed(t) = input {
+		let mut ts = proc_macro2::TokenStream::new();
+		t.ty.to_tokens(&mut ts);
+		ts.to_string()
+	    } else {
+		todo!() // give an error or something
+	    }
+	}
+    ).collect::<Vec<String>>().join(", "), ts);
 
     let mut args = vec![];
     for i in 0..item.sig.inputs.len() {
@@ -62,7 +78,7 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
 
 	patchable::lazy_static! {
 	    #[allow(non_upper_case_globals)] // ree
-	    pub static ref #fn_name: patchable::Patchable<#fargs, #output_type> = patchable::Patchable::new(#inlineident, #modpathname());
+	    pub static ref #fn_name: patchable::Patchable<#fargs, #output_type> = patchable::Patchable::new(#inlineident, #modpathname(), #sigtext);
 	}
 
 	#inline_fn
