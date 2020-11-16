@@ -20,7 +20,6 @@ Key features:
   - Better naming
   - Proper .gitignore
 - Investigate if a linker object can have `::` in its name, and if so how to mangle that in
-- Figure out a way to make `src_obj` not need a single export static (for proc_macro reasons)
 - Library/proc\_macros for alternative definitions (like `src_obj`)
 - Finalize module-aware functionality
 - Embed type information in exports for increased saftey

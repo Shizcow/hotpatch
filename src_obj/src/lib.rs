@@ -1,11 +1,13 @@
-use phf::phf_map;
-
-#[no_mangle]
-pub static HOTPATCH_EXPORTS: phf::Map<&'static str, fn(()) -> i32> = phf_map! {
-    "::foo" => foo,
-};
+use patchable::HotpatchExport;
 
 pub fn foo(args: ()) -> i32 {
     println!("Hello from foo");
     1
 }
+
+#[no_mangle]
+pub static __HOTPATCH_EXPORT_0: HotpatchExport<fn(()) -> i32> =
+    HotpatchExport{ptr: foo,
+		   symbol: "::foo",
+		   sig: "fn(()) -> i32"};
+

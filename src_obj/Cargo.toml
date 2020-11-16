@@ -10,4 +10,4 @@ crate-type = ["dylib"]
 
 [dependencies]
 libc = "0.2.0"
-phf = { version = "0.8", features = ["macros"] }
+patchable = {path = "../patchable"}

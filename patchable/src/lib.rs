@@ -1,9 +1,15 @@
 #![feature(unboxed_closures)]
 #![feature(fn_traits)]
 
+#[derive(Copy, Clone)]
+pub struct HotpatchExport<T> {
+    pub symbol: &'static str, // field order is important
+    pub sig: &'static str,
+    pub ptr: T,
+}
+
 pub use lazy_static::lazy_static;
 use std::sync::RwLock;
-use simple_error::bail;
 
 struct PatchableInternal<Args, Ret> {
     ptr: fn(Args) -> Ret,
@@ -18,13 +24,23 @@ impl<Args: 'static, Ret: 'static> PatchableInternal<Args, Ret> {
 	unsafe {
 	    let lib = 
 		libloading::Library::new(lib_name).unwrap();
-            let exports: libloading::Symbol<*mut phf::Map<&'static str, fn(Args) -> Ret>>
-		= lib.get(b"HOTPATCH_EXPORTS")?;
-	    self.ptr = match (**exports).get(mpath) {
-		Some(p) => *p,
-		None => bail!(format!("Error, no symbol '{}' found in library {}", mpath, lib_name)),
-	    };
-	    self.libs.push(lib);
+	    
+	    let mut i: usize = 0;
+
+	    loop {
+		let symbol_name = format!("{}{}", "__HOTPATCH_EXPORT_", i);
+		let exports: libloading::Symbol<*mut HotpatchExport<fn(Args) -> Ret>>
+		    = lib.get(symbol_name.as_bytes()).map_err(
+			|_| format!("Hotpatch for {} failed: symbol not found in library {}",
+				    mpath, lib_name))?;
+		let export_obj = &**exports;
+		if export_obj.symbol == mpath { // found the correct symbol
+		    self.ptr = export_obj.ptr;
+		    self.libs.push(lib);
+		    break;
+		}
+		i += 1;
+	    }
 	}
 	Ok(())
     }
