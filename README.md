@@ -29,4 +29,5 @@ Key features:
 - Docs
 - Tests for thread-saftey, how `RWLock` rejects function calls, and how to handle (`try_call`?)
 - What traits to `Patchable` structs need? `Sync`? `Copy`/`Clone`? Should some of these traits be under an `extra_traits` feature option?
+- Methods!
 - More examples
