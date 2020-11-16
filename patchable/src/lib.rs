@@ -36,7 +36,7 @@ impl<Args: 'static, Ret: 'static> PatchableInternal<Args, Ret> {
 			|_| format!("Hotpatch for {} failed: symbol not found in library {}",
 				    mpath, lib_name))?;
 		let export_obj = &**exports;
-		if export_obj.symbol == mpath { // found the correct symbol
+		if export_obj.symbol.trim_start_matches(|c| c!=':') == mpath { // found the correct symbol
 		    if self.sig != export_obj.sig {
 			bail!("Hotpatch for {} failed: symbol found but of wrong type. Expecter {} but found {}", mpath, self.sig, export_obj.sig);
 		    }
