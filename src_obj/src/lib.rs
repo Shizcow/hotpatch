@@ -6,7 +6,11 @@ pub fn foo() {
     println!("Hello from foo");
 }
 
-#[patch]
-pub fn bar() {
-    println!("Hello from bar");
+mod a {
+    use patch_proc::patch;
+    use patchable::HotpatchExport;
+    #[patch]
+    pub fn bar() {
+	println!("Hello from bar");
+    }
 }
