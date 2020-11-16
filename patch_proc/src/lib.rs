@@ -3,7 +3,11 @@ use proc_macro2::Span;
 use quote::quote;
 use quote::ToTokens;
 use syn::{ItemFn, parse::Nothing, Ident, ReturnType::Type, FnArg::Typed};
+use std::sync::RwLock;
 
+lazy_static::lazy_static! {
+    static ref EXPORTNUM: RwLock<usize> = RwLock::new(0);
+}
 
 #[proc_macro_attribute]
 pub fn patch(attr: TokenStream, input: TokenStream) -> TokenStream {
@@ -72,11 +76,19 @@ pub fn patch(attr: TokenStream, input: TokenStream) -> TokenStream {
 	args: #fargs
     }).unwrap());
 
-    let hotpatch_name = Ident::new("__HOTPATCH_EXPORT_0", Span::call_site());
+    let exnum;
+    { // scope is used so EXPORTNUM is unlocked faster
+	let mut r = EXPORTNUM.write().unwrap();
+	exnum = *r;
+	*r += 1;
+    }
+
+    let hotpatch_name = Ident::new(&format!("__HOTPATCH_EXPORT_{}", exnum), Span::call_site());
+
 
     TokenStream::from(quote!{
 	const fn #modpathname() -> &'static str {
-	    concat!(module_path!(), "::foo")
+	    concat!(module_path!(), "::", stringify!(#fn_name))
 	}
 
 	#[no_mangle]
@@ -161,7 +173,7 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     TokenStream::from(quote!{
 	const fn #modpathname() -> &'static str {
-	    concat!(module_path!(), "::foo")
+	    concat!(module_path!(), "::", stringify!(#fn_name))
 	}
 
 	patchable::lazy_static! {

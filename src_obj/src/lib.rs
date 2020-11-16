@@ -5,3 +5,8 @@ use patch_proc::patch;
 pub fn foo() {
     println!("Hello from foo");
 }
+
+#[patch]
+pub fn bar() {
+    println!("Hello from bar");
+}
