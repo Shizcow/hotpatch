@@ -33,4 +33,5 @@ Key features:
 - Seperate nightly vs non-nightly features and use features to enable
 - Docs
 - Tests for thread-saftey, how `RWLock` rejects function calls, and how to handle (`try_call`?)
+- What traits to `Patchable` structs need? `Sync`? `Copy`/`Clone`? Should some of these traits be under an `extra_traits` feature option?
 - More examples
