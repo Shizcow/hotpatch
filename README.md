@@ -9,10 +9,12 @@ Key features:
 - Namespace aware
 
 ## Directory
-- `src_bin`: Example, includes main and source definintion
-- `src_obj`: Example, includes alternative definitions for `src_bin`
-- `patchable`: main library
-- `patch_proc`: proc macro stuff
+- `examples`
+  - `hello_world`: A basic example on how to get things up and running
+    - `src_bin`: Includes main and source definintion
+    - `src_obj`: Includes alternative definitions for `src_bin`
+- `hotpatch`: Main library. End users include this crate
+- `hotpatch_macros`: Proc macro stuff. End users can ignore
 
 ## TODO
 - Investigate if a linker object can have `::` in its name, and if so how to mangle that in
