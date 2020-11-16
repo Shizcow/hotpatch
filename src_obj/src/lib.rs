@@ -1,4 +1,4 @@
-use patch_proc::patch;
+use hotpatch::patch;
 
 #[patch]
 pub fn foo() {
@@ -6,7 +6,7 @@ pub fn foo() {
 }
 
 mod a {
-    use patch_proc::patch;
+    use hotpatch::patch;
     #[patch]
     pub fn bar(a: i32) {
 	println!("Hello from bar. I have {} as an arg.", a);

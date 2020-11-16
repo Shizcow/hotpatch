@@ -1,5 +1,5 @@
 [package]
-name = "patch_proc"
+name = "hotpatch_macros"
 version = "0.1.0"
 authors = ["Shizcow <pohl.devin@gmail.com>"]
 edition = "2018"

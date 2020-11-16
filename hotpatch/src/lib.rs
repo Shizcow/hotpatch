@@ -1,24 +1,25 @@
 #![feature(unboxed_closures)]
 #![feature(fn_traits)]
 
-#[derive(Copy, Clone)]
+use std::sync::RwLock;
+use simple_error::bail;
+
+pub use lazy_static::lazy_static; // for compatibility
+pub use hotpatch_macros::*;
+
 pub struct HotpatchExport<T> {
     pub symbol: &'static str, // field order is important
     pub sig: &'static str,
     pub ptr: T,
 }
 
-pub use lazy_static::lazy_static;
-use std::sync::RwLock;
-use simple_error::bail;
-
-struct PatchableInternal<Args, Ret> {
+struct HotpatchImportInternal<Args, Ret> {
     ptr: fn(Args) -> Ret,
     sig: &'static str,
     libs: Vec<libloading::Library>, // TODO: make into a reference or RC or something
 }
 
-impl<Args: 'static, Ret: 'static> PatchableInternal<Args, Ret> {
+impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
     pub fn new(ptr: fn(Args) -> Ret, sig: &'static str) -> Self {
 	Self{ptr, libs: vec![], sig}
     }
@@ -51,31 +52,31 @@ impl<Args: 'static, Ret: 'static> PatchableInternal<Args, Ret> {
     }
 }
 
-pub struct Patchable<Args, Ret> {
-    r: RwLock<PatchableInternal<Args, Ret>>,
+pub struct HotpatchImport<Args, Ret> {
+    r: RwLock<HotpatchImportInternal<Args, Ret>>,
     mpath: &'static str,
 }
 
-impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
+impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
     pub fn new(ptr: fn(Args) -> Ret, mpath: &'static str, sig: &'static str) -> Self {
-	Self{r: RwLock::new(PatchableInternal::new(ptr, sig)), mpath: mpath.trim_start_matches(|c| c!=':')}
+	Self{r: RwLock::new(HotpatchImportInternal::new(ptr, sig)), mpath: mpath.trim_start_matches(|c| c!=':')}
     }
     pub fn hotpatch(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.r.write()?.hotpatch(lib_name, self.mpath)
     }
 }
-impl<Args, Ret> FnOnce<Args> for Patchable<Args, Ret> {
+impl<Args, Ret> FnOnce<Args> for HotpatchImport<Args, Ret> {
     type Output = Ret;
     extern "rust-call" fn call_once(self, args: Args) -> <Self as std::ops::FnOnce<Args>>::Output {
 	(self.r.read().unwrap().ptr)(args)
     }
 }
-impl<Args, Ret> FnMut<Args> for Patchable<Args, Ret> {
+impl<Args, Ret> FnMut<Args> for HotpatchImport<Args, Ret> {
     extern "rust-call" fn call_mut(&mut self, args: Args) -> <Self as std::ops::FnOnce<Args>>::Output {
 	(self.r.read().unwrap().ptr)(args)
     }
 }
-impl<Args, Ret> Fn<Args> for Patchable<Args, Ret> {
+impl<Args, Ret> Fn<Args> for HotpatchImport<Args, Ret> {
     extern "rust-call" fn call(&self, args: Args) -> <Self as std::ops::FnOnce<Args>>::Output {
 	(self.r.read().unwrap().ptr)(args)
     }

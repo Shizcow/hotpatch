@@ -9,7 +9,6 @@ lazy_static::lazy_static! {
     static ref EXPORTNUM: RwLock<usize> = RwLock::new(0);
 }
 
-
 #[proc_macro_attribute]
 pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
     syn::parse_macro_input!(attr as Nothing); // I take no args
@@ -18,9 +17,9 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
 	= gather_info(syn::parse::<ItemFn>(input).unwrap(), true);
 
     TokenStream::from(quote!{
-	patchable::lazy_static! {
+	hotpatch::lazy_static! {
 	    #[allow(non_upper_case_globals)] // ree
-	    pub static ref #fn_name: patchable::Patchable<#fargs, #output_type> = patchable::Patchable::new(#inlineident, concat!(module_path!(), "::", stringify!(#fn_name)), #sigtext);
+	    pub static ref #fn_name: hotpatch::HotpatchImport<#fargs, #output_type> = hotpatch::HotpatchImport::new(#inlineident, concat!(module_path!(), "::", stringify!(#fn_name)), #sigtext);
 	}
 
 	#inline_fn
@@ -48,8 +47,8 @@ pub fn patch(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     TokenStream::from(quote!{
 	#[no_mangle]
-	pub static #hotpatch_name: patchable::HotpatchExport<fn(#fargs) -> #output_type> =
-	    patchable::HotpatchExport{ptr: #inlineident,
+	pub static #hotpatch_name: hotpatch::HotpatchExport<fn(#fargs) -> #output_type> =
+	    hotpatch::HotpatchExport{ptr: #inlineident,
 			   symbol: concat!(module_path!(), "::", stringify!(#fn_name)),
 			   sig: #sigtext};
 

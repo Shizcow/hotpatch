@@ -10,5 +10,4 @@ crate-type = ["dylib"]
 
 [dependencies]
 libc = "0.2.0"
-patch_proc = {path = "../patch_proc"}
-patchable = {path = "../patchable"}
+hotpatch = {path = "../hotpatch"}

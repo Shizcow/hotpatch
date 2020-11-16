@@ -6,5 +6,4 @@ edition = "2018"
 
 [dependencies]
 lazy_static = "1.4.0"
-patchable = {path = "../patchable"}
-patch_proc = {path = "../patch_proc"}
+hotpatch = {path = "../hotpatch"}

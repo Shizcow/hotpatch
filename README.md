@@ -17,7 +17,6 @@ Key features:
 ## TODO
 - Fix project structure
   - Workspaces
-  - Better naming
   - Proper .gitignore
 - Investigate if a linker object can have `::` in its name, and if so how to mangle that in
 - Library/proc\_macros for alternative definitions (like `src_obj`)

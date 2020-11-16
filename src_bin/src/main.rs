@@ -1,7 +1,7 @@
-use patch_proc::patchable;
+use hotpatch::patchable;
 
 mod a {
-    use patch_proc::patchable;
+    use hotpatch::patchable;
     #[patchable]
     fn bar(a: i32) {
 	println!("I am from source bar. I have {} as an arg.", a);

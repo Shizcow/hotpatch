@@ -7,6 +7,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "hotpatch"
+version = "0.1.0"
+dependencies = [
+ "hotpatch_macros",
+ "lazy_static",
+ "libloading",
+ "simple-error",
+]
+
+[[package]]
+name = "hotpatch_macros"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -20,25 +40,6 @@ checksum = "1090080fe06ec2648d0da3881d9453d97e71a45f00eb179af7fdd7e3f686fdb0"
 dependencies = [
  "cfg-if",
  "winapi",
-]
-
-[[package]]
-name = "patch_proc"
-version = "0.1.0"
-dependencies = [
- "lazy_static",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "patchable"
-version = "0.1.0"
-dependencies = [
- "lazy_static",
- "libloading",
- "simple-error",
 ]
 
 [[package]]
@@ -69,9 +70,8 @@ checksum = "634bf7bc1315698154cb1b45c1db17fcd2e5ce41f925b7b4063e971536714bf1"
 name = "src_bin"
 version = "0.1.0"
 dependencies = [
+ "hotpatch",
  "lazy_static",
- "patch_proc",
- "patchable",
 ]
 
 [[package]]
