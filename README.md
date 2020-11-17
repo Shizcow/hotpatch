@@ -22,6 +22,8 @@ Key features:
     - Functions can call other functions, so this is impossible
   - maybe a global static with the libs and track live references?
   - Are duplicates magically optimized away?
+- Why is it that when running through cargo everything is okay but directly
+  running the executable it always wants to open `libstd-7edd956e9d8d05ea.so`?
 - Optional macro arguements to override automatic module handling (on both ends?)
 - Open a PR on lazy_static allowing item attributes so functors don't generate warnings
   on lowercase names

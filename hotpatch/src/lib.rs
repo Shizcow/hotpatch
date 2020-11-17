@@ -16,12 +16,12 @@ pub struct HotpatchExport<T> {
 struct HotpatchImportInternal<Args, Ret> {
     ptr: fn(Args) -> Ret,
     sig: &'static str,
-    libs: Vec<libloading::Library>, // TODO: make into a reference or RC or something
+    lib: Option<libloading::Library>, // TODO: make into a reference or RC or something
 }
 
 impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
     pub fn new(ptr: fn(Args) -> Ret, sig: &'static str) -> Self {
-	Self{ptr, libs: vec![], sig}
+	Self{ptr, lib: None, sig}
     }
     pub fn hotpatch(&mut self, lib_name: &str, mpath: &str) -> Result<(), Box<dyn std::error::Error>> {
 	unsafe {
@@ -42,7 +42,7 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 			bail!("Hotpatch for {} failed: symbol found but of wrong type. Expecter {} but found {}", mpath, self.sig, export_obj.sig);
 		    }
 		    self.ptr = export_obj.ptr;
-		    self.libs.push(lib);
+		    self.lib = Some(lib);
 		    break;
 		}
 		i += 1;
