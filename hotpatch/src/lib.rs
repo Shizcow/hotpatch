@@ -67,17 +67,25 @@ impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
 }
 impl<Args, Ret> FnOnce<Args> for HotpatchImport<Args, Ret> {
     type Output = Ret;
-    extern "rust-call" fn call_once(self, args: Args) -> <Self as std::ops::FnOnce<Args>>::Output {
+    extern "rust-call" fn call_once(self, args: Args) -> Ret {
+	// When variadic generics are imlemented the following line can be used
+	// to avoid the layer of indirection associated with a function having
+	// a tuple list as an arguement. The current bottleneck is getting the
+	// type bounds for variadic arguements on HotpatchImportInternal. Currently, a single
+	// type arguement tuple is used to give a constant number of arguements.
+	// When variadic template arguements are introduced, the stored function pointer
+	// will be type-aware.
+	//std::ops::Fn::call(&self.r.read().unwrap().ptr, args)
 	(self.r.read().unwrap().ptr)(args)
     }
 }
 impl<Args, Ret> FnMut<Args> for HotpatchImport<Args, Ret> {
-    extern "rust-call" fn call_mut(&mut self, args: Args) -> <Self as std::ops::FnOnce<Args>>::Output {
+    extern "rust-call" fn call_mut(&mut self, args: Args) -> Ret {
 	(self.r.read().unwrap().ptr)(args)
     }
 }
 impl<Args, Ret> Fn<Args> for HotpatchImport<Args, Ret> {
-    extern "rust-call" fn call(&self, args: Args) -> <Self as std::ops::FnOnce<Args>>::Output {
+    extern "rust-call" fn call(&self, args: Args) -> Ret {
 	(self.r.read().unwrap().ptr)(args)
     }
 }
