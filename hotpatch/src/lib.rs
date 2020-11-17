@@ -25,8 +25,7 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
     }
     pub fn hotpatch(&mut self, lib_name: &str, mpath: &str) -> Result<(), Box<dyn std::error::Error>> {
 	unsafe {
-	    let lib = 
-		libloading::Library::new(lib_name).unwrap();
+	    let lib = libloading::Library::new(lib_name)?;
 	    
 	    let mut i: usize = 0;
 

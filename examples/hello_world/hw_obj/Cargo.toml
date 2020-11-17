@@ -6,7 +6,7 @@ edition = "2018"
 
 [lib]
 name = "hw_obj"
-crate-type = ["dylib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 hotpatch = {path = "../../../hotpatch"}
