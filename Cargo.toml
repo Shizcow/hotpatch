@@ -3,6 +3,8 @@
 members = [
     "hotpatch",
     "hotpatch_macros",
-    "examples/hello_world/src_bin",
-    "examples/hello_world/src_obj",
+    "examples/hello_world/hw_bin",
+    "examples/hello_world/hw_obj",
+    "examples/threads/threads_bin",
+    "examples/threads/threads_obj",
 ]

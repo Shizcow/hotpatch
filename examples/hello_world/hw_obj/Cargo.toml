@@ -1,0 +1,12 @@
+[package]
+name = "hw_obj"
+version = "0.1.0"
+authors = ["Shizcow <pohl.devin@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "hw_obj"
+crate-type = ["dylib"]
+
+[dependencies]
+hotpatch = {path = "../../../hotpatch"}

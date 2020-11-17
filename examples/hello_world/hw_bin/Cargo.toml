@@ -1,12 +1,8 @@
 [package]
-name = "src_obj"
+name = "hw_bin"
 version = "0.1.0"
 authors = ["Shizcow <pohl.devin@gmail.com>"]
 edition = "2018"
-
-[lib]
-name = "src_obj"
-crate-type = ["dylib"]
 
 [dependencies]
 hotpatch = {path = "../../../hotpatch"}

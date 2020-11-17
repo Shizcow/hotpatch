@@ -15,12 +15,12 @@ fn foo() {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {    
     foo(); // prints "I am from source"
-    foo.hotpatch("target/debug/libsrc_obj.so")?;
+    foo.hotpatch("target/debug/libhw_obj.so")?;
     foo(); // prints something totally different
 
     use crate::a::bar;
     bar(1);
-    bar.hotpatch("target/debug/libsrc_obj.so")?;
+    bar.hotpatch("target/debug/libhw_obj.so")?;
     bar(2);
     Ok(())
 }

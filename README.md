@@ -27,9 +27,7 @@ Key features:
   on lowercase names
 - Seperate nightly vs non-nightly features and use features to enable
 - Docs
-- Tests for thread-saftey, how `RWLock` rejects function calls, and how to handle (`try_call`?)
-- What traits to `Patchable` structs need? `Sync`? `Copy`/`Clone`? Should some of
-  these traits be under an `extra_traits` feature option?
+  - Does anything need `#[doc(hidden)]` from `proc_macro`s?
 - See how far out variadic template parameters are so the extra layer of indirection
   required by the tuple Fn args can go away
 - Methods!
