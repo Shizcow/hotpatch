@@ -30,6 +30,4 @@ Key features:
   - Does anything need `#[doc(hidden)]` from `proc_macro`s?
 - See how far out variadic template parameters are so the extra layer of indirection
   required by the tuple Fn args can go away
-- Methods!
-  - No, struct static members should not be hotpatched. Too bad I'm going to try to do it.
 - More examples

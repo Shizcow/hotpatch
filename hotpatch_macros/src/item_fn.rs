@@ -13,16 +13,14 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
     TokenStream::from(quote!{
 	#[allow(non_upper_case_globals)]
 	pub static #fn_name: hotpatch::Lazy<hotpatch::HotpatchImport<#fargs, #output_type>>
-	    = hotpatch::Lazy::new(
-		||  hotpatch::HotpatchImport::new(#inlineident,
-						  concat!(module_path!(), "::", stringify!(#fn_name)),
-						  #sigtext)
-	);
-
-	#inline_fn
-
-	#[inline(always)]
-	#item
+	    = hotpatch::Lazy::new(|| {
+		#inline_fn
+		#[inline(always)]
+		#item
+		hotpatch::HotpatchImport::new(#inlineident,
+					      concat!(module_path!(), "::", stringify!(#fn_name)),
+					      #sigtext)
+	    });
     })
 }
 
@@ -46,7 +44,7 @@ pub fn patch(fn_item: ItemFn) -> TokenStream {
 				     symbol: concat!(module_path!(), "::", stringify!(#fn_name)),
 				     sig: #sigtext};
 
-	#inline_fn
+	#inline_fn // TODO: can this be put inside the above definition?
 
 	#item
     })
