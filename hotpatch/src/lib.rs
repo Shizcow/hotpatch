@@ -24,9 +24,12 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
     pub fn new(ptr: fn(Args) -> Ret, sig: &'static str) -> Self {
 	Self{current_ptr: ptr, default_ptr: ptr, lib: None, sig}
     }
-    pub fn restore_default(&mut self) {
-	self.lib.take().map(|l| l.close());
+    pub fn restore_default(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+	if self.lib.is_some() {
+	    self.lib.take().unwrap().close()?;
+	}
 	self.current_ptr = self.default_ptr;
+	Ok(())
     }
     pub fn hotpatch(&mut self, lib_name: &str, mpath: &str) -> Result<(), Box<dyn std::error::Error>> {
 	unsafe {
@@ -46,7 +49,9 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 			bail!("Hotpatch for {} failed: symbol found but of wrong type. Expecter {} but found {}", mpath, self.sig, export_obj.sig);
 		    }
 		    self.current_ptr = export_obj.ptr;
-		    self.lib.take().map(|l| l.close());
+		    if self.lib.is_some() {
+			self.lib.take().unwrap().close()?;
+		    }
 		    self.lib = Some(lib);
 		    break;
 		}
@@ -71,7 +76,7 @@ impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
 	self.r.write()?.hotpatch(lib_name, self.mpath)
     }
     pub fn restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
-	Ok(self.r.write()?.restore_default())
+	self.r.write()?.restore_default()
     }
 }
 impl<Args, Ret> FnOnce<Args> for HotpatchImport<Args, Ret> {
