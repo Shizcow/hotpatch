@@ -17,11 +17,7 @@ Key features:
 - `hotpatch_macros`: Proc macro stuff. End users can ignore
 
 ## TODO
-- Find a more efficient way of storing `libloading::Library` objects to remove duplicates
-  - Can we just keep the `libloading::Symbol` and drop the library?
-    - Functions can call other functions, so this is impossible
-  - maybe a global static with the libs and track live references?
-  - Are duplicates magically optimized away?
+- Raise an issue for the root cause of `libloading::Library`'s memory leak
 - Optional macro arguements to override automatic module handling (on both ends?)
 - Seperate nightly vs non-nightly features and use features to enable
 - Docs
