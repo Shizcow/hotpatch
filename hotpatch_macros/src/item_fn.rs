@@ -11,10 +11,13 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 	= gather_info(fn_item, true);
 
     TokenStream::from(quote!{
-	hotpatch::lazy_static! {
-	    #[allow(non_upper_case_globals)] // ree
-	    pub static ref #fn_name: hotpatch::HotpatchImport<#fargs, #output_type> = hotpatch::HotpatchImport::new(#inlineident, concat!(module_path!(), "::", stringify!(#fn_name)), #sigtext);
-	}
+	#[allow(non_upper_case_globals)]
+	pub static #fn_name: hotpatch::Lazy<hotpatch::HotpatchImport<#fargs, #output_type>>
+	    = hotpatch::Lazy::new(
+		||  hotpatch::HotpatchImport::new(#inlineident,
+						  concat!(module_path!(), "::", stringify!(#fn_name)),
+						  #sigtext)
+	);
 
 	#inline_fn
 

@@ -4,7 +4,7 @@
 use std::sync::RwLock;
 use simple_error::bail;
 
-pub use lazy_static::lazy_static; // for compatibility
+pub use once_cell::sync::Lazy;
 pub use hotpatch_macros::*;
 
 pub struct HotpatchExport<T> {
