@@ -17,7 +17,7 @@ struct HotpatchImportInternal<Args, Ret> {
     current_ptr: fn(Args) -> Ret,
     default_ptr: fn(Args) -> Ret,
     sig: &'static str,
-    lib: Option<libloading::Library>, // TODO: make into a reference or RC or something
+    lib: Option<libloading::Library>,
 }
 
 impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
@@ -25,8 +25,8 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 	Self{current_ptr: ptr, default_ptr: ptr, lib: None, sig}
     }
     pub fn restore_default(&mut self) {
+	self.lib.take().map(|l| l.close());
 	self.current_ptr = self.default_ptr;
-	self.lib = None;
     }
     pub fn hotpatch(&mut self, lib_name: &str, mpath: &str) -> Result<(), Box<dyn std::error::Error>> {
 	unsafe {
@@ -46,6 +46,7 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 			bail!("Hotpatch for {} failed: symbol found but of wrong type. Expecter {} but found {}", mpath, self.sig, export_obj.sig);
 		    }
 		    self.current_ptr = export_obj.ptr;
+		    self.lib.take().map(|l| l.close());
 		    self.lib = Some(lib);
 		    break;
 		}
