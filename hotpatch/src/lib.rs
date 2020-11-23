@@ -58,7 +58,8 @@ pub struct HotpatchImport<Args, Ret> {
 
 impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
     pub fn new(ptr: fn(Args) -> Ret, mpath: &'static str, sig: &'static str) -> Self {
-	Self{r: RwLock::new(HotpatchImportInternal::new(ptr, sig)), mpath: mpath.trim_start_matches(|c| c!=':')}
+	Self{r: RwLock::new(HotpatchImportInternal::new(ptr, sig)),
+	     mpath: mpath.trim_start_matches(|c| c!=':')}
     }
     pub fn hotpatch(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.r.write()?.hotpatch(lib_name, self.mpath)
