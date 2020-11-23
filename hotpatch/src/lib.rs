@@ -24,6 +24,10 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
     pub fn new(ptr: fn(Args) -> Ret, sig: &'static str) -> Self {
 	Self{current_ptr: ptr, default_ptr: ptr, lib: None, sig}
     }
+    pub fn restore_default(&mut self) {
+	self.current_ptr = self.default_ptr;
+	self.lib = None;
+    }
     pub fn hotpatch(&mut self, lib_name: &str, mpath: &str) -> Result<(), Box<dyn std::error::Error>> {
 	unsafe {
 	    let lib = libloading::Library::new(lib_name)?;
@@ -66,9 +70,7 @@ impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
 	self.r.write()?.hotpatch(lib_name, self.mpath)
     }
     pub fn restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
-	let r = &mut self.r.write()?;
-	r.current_ptr = r.default_ptr;
-	Ok(())
+	Ok(self.r.write()?.restore_default())
     }
 }
 impl<Args, Ret> FnOnce<Args> for HotpatchImport<Args, Ret> {
