@@ -7,4 +7,7 @@ members = [
     "examples/hello_world/hw_obj",
     "examples/threads/threads_bin",
     "examples/threads/threads_obj",
+    "examples/multiple/multiple_bin",
+    "examples/multiple/multiple_obj1",
+    "examples/multiple/multiple_obj2",
 ]

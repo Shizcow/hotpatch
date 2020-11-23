@@ -14,14 +14,15 @@ pub struct HotpatchExport<T> {
 }
 
 struct HotpatchImportInternal<Args, Ret> {
-    ptr: fn(Args) -> Ret,
+    current_ptr: fn(Args) -> Ret,
+    default_ptr: fn(Args) -> Ret,
     sig: &'static str,
     lib: Option<libloading::Library>, // TODO: make into a reference or RC or something
 }
 
 impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
     pub fn new(ptr: fn(Args) -> Ret, sig: &'static str) -> Self {
-	Self{ptr, lib: None, sig}
+	Self{current_ptr: ptr, default_ptr: ptr, lib: None, sig}
     }
     pub fn hotpatch(&mut self, lib_name: &str, mpath: &str) -> Result<(), Box<dyn std::error::Error>> {
 	unsafe {
@@ -40,7 +41,7 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 		    if self.sig != export_obj.sig {
 			bail!("Hotpatch for {} failed: symbol found but of wrong type. Expecter {} but found {}", mpath, self.sig, export_obj.sig);
 		    }
-		    self.ptr = export_obj.ptr;
+		    self.current_ptr = export_obj.ptr;
 		    self.lib = Some(lib);
 		    break;
 		}
@@ -64,6 +65,11 @@ impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
     pub fn hotpatch(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.r.write()?.hotpatch(lib_name, self.mpath)
     }
+    pub fn restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
+	let r = &mut self.r.write()?;
+	r.current_ptr = r.default_ptr;
+	Ok(())
+    }
 }
 impl<Args, Ret> FnOnce<Args> for HotpatchImport<Args, Ret> {
     type Output = Ret;
@@ -76,16 +82,16 @@ impl<Args, Ret> FnOnce<Args> for HotpatchImport<Args, Ret> {
 	// When variadic template arguements are introduced, the stored function pointer
 	// will be type-aware.
 	//std::ops::Fn::call(&self.r.read().unwrap().ptr, args)
-	(self.r.read().unwrap().ptr)(args)
+	(self.r.read().unwrap().current_ptr)(args)
     }
 }
 impl<Args, Ret> FnMut<Args> for HotpatchImport<Args, Ret> {
     extern "rust-call" fn call_mut(&mut self, args: Args) -> Ret {
-	(self.r.read().unwrap().ptr)(args)
+	(self.r.read().unwrap().current_ptr)(args)
     }
 }
 impl<Args, Ret> Fn<Args> for HotpatchImport<Args, Ret> {
     extern "rust-call" fn call(&self, args: Args) -> Ret {
-	(self.r.read().unwrap().ptr)(args)
+	(self.r.read().unwrap().current_ptr)(args)
     }
 }

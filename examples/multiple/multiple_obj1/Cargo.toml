@@ -1,0 +1,12 @@
+[package]
+name = "multiple_obj1"
+version = "0.1.0"
+authors = ["Shizcow <pohl.devin@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "multiple_obj1"
+crate-type = ["cdylib"]
+
+[dependencies]
+hotpatch = {path = "../../../hotpatch"}
