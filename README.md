@@ -17,6 +17,11 @@ Key features:
 - `hotpatch_macros`: Proc macro stuff. End users can ignore
 
 ## TODO
+- Figure out how to hotpatch `main` via `#[start]` or `#[main]`
+- Figure out local hotpatching with functions and closures.
+  - Can you overload `=` in Rust?
+  - Can `Patchable::hotpatch` take arguements of different types that `.into` into a funciton pointer?
+- GATs were added to nightly. Does this allow anything particularly useful?
 - Raise an issue for the root cause of `libloading::Library`'s memory leak
 - Optional macro arguements to override automatic module handling (on both ends?)
 - Seperate nightly vs non-nightly features and use features to enable
