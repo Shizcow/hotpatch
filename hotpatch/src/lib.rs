@@ -14,30 +14,36 @@ pub struct HotpatchExport<T> {
 }
 
 struct HotpatchImportInternal<Args, Ret> {
-    current_ptr: fn(Args) -> Ret,
-    default_ptr: fn(Args) -> Ret,
+    current_ptr: Box<dyn Fn(Args) -> Ret + Send + Sync + 'static>,
+    default_ptr: Box<dyn Fn(Args) -> Ret + Send + Sync + 'static>,
     sig: &'static str,
     lib: Option<libloading::Library>,
 }
 
 impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
     pub fn new(ptr: fn(Args) -> Ret, sig: &'static str) -> Self {
-	Self{current_ptr: ptr, default_ptr: ptr, lib: None, sig}
+	Self{current_ptr: Box::new(ptr), default_ptr: Box::new(ptr), lib: None, sig}
     }
-    pub fn restore_default(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn clean(&mut self) -> Result<(), Box<dyn std::error::Error>> {
 	if self.lib.is_some() {
 	    self.lib.take().unwrap().close()?;
 	}
-	self.current_ptr = self.default_ptr;
 	Ok(())
+    }
+    pub fn restore_default(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+	//self.current_ptr = Box::new(*self.default_ptr);
+	self.clean()
     }
     pub fn hotpatch_fn(&mut self, ptr: fn(Args) -> Ret)
 		       -> Result<(), Box<dyn std::error::Error>> {
-	self.current_ptr = ptr;
-	if self.lib.is_some() {
-	    self.lib.take().unwrap().close()?;
-	}
-	Ok(())
+	self.current_ptr = Box::new(ptr);
+	self.clean()
+    }
+    pub fn hotpatch_closure<F: Send + Sync + 'static>(&mut self, ptr: F)
+			       -> Result<(), Box<dyn std::error::Error>>
+    where F: Fn(Args) -> Ret {
+	self.current_ptr = Box::new(ptr);
+	self.clean()
     }
     pub fn hotpatch_lib(&mut self, lib_name: &str, mpath: &str) -> Result<(), Box<dyn std::error::Error>> {
 	unsafe {
@@ -56,10 +62,8 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 		    if self.sig != export_obj.sig {
 			bail!("Hotpatch for {} failed: symbol found but of wrong type. Expecter {} but found {}", mpath, self.sig, export_obj.sig);
 		    }
-		    self.current_ptr = export_obj.ptr;
-		    if self.lib.is_some() {
-			self.lib.take().unwrap().close()?;
-		    }
+		    self.current_ptr = Box::new(export_obj.ptr);
+		    self.clean()?;
 		    self.lib = Some(lib);
 		    break;
 		}
@@ -85,6 +89,11 @@ impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
     }
     pub fn hotpatch_fn(&self, ptr: fn(Args) -> Ret) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.r.write()?.hotpatch_fn(ptr)
+    }
+    pub fn hotpatch_closure<F: Send + Sync + 'static>(&self, ptr: F)
+			       -> Result<(), Box<dyn std::error::Error + '_>>
+    where F: Fn(Args) -> Ret {
+	self.r.write()?.hotpatch_closure(ptr)
     }
     pub fn restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.r.write()?.restore_default()
