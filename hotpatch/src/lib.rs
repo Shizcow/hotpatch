@@ -5,6 +5,7 @@ use std::sync::RwLock;
 use simple_error::bail;
 
 pub use once_cell::sync::Lazy;
+use variadic_generics::*;
 pub use hotpatch_macros::*;
 
 pub struct HotpatchExport<T> {
@@ -55,7 +56,7 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 		let export_obj = &**exports;
 		if export_obj.symbol.trim_start_matches(|c| c!=':') == mpath { // found the correct symbol
 		    if self.sig != export_obj.sig {
-			bail!("Hotpatch for {} failed: symbol found but of wrong type. Expecter {} but found {}", mpath, self.sig, export_obj.sig);
+			bail!("Hotpatch for {} failed: symbol found but of wrong type. Expected {} but found {}", mpath, self.sig, export_obj.sig);
 		    }
 		    self.current_ptr = Box::new(export_obj.ptr);
 		    self.clean()?;
@@ -87,8 +88,6 @@ impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
     }
 }
 
-#[macro_use]
-extern crate variadic_generics;
 va_expand_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
 	     impl<$($va_idents: 'static,)* Ret: 'static> HotpatchImport<($($va_idents,)*), Ret> {
 		 pub fn hotpatch_closure<F: Send + Sync + 'static>(&self, ptr: F)
@@ -99,20 +98,6 @@ va_expand_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
 	     }
 }
 
-/*impl<A: 'static, Ret: 'static> HotpatchImport<(A,), Ret> {
-    pub fn experiment<F: Send + Sync + 'static>(&self, ptr: F)
-			       -> Result<(), Box<dyn std::error::Error + '_>>
-    where F: Fn(A) -> Ret {
-	self.r.write()?.hotpatch_closure(move |args| ptr.call(args))
-    }
-}
-impl<Ret: 'static> HotpatchImport<(()), Ret> {
-    pub fn experiment<F: Send + Sync + 'static>(&self, ptr: F)
-			       -> Result<(), Box<dyn std::error::Error + '_>>
-    where F: Fn() -> Ret {
-	self.r.write()?.hotpatch_closure(move |args| ptr.call(args))
-    }
-}*/
 impl<Args, Ret> FnOnce<Args> for HotpatchImport<Args, Ret> {
     type Output = Ret;
     extern "rust-call" fn call_once(self, args: Args) -> Ret {
