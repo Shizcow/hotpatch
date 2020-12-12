@@ -8,13 +8,10 @@ Key features:
 - Works for functions of any signature
 - Namespace aware
 
-## Directory
-- `examples`
-  - `hello_world`: A basic example on how to get things up and running
-    - `src_bin`: Includes main and source definintion
-    - `src_obj`: Includes alternative definitions for `src_bin`
-- `hotpatch`: Main library. End users include this crate
-- `hotpatch_macros`: Proc macro stuff. End users can ignore
+## Warnings
+- Don't hotpatch the function you're currently in, or any of its parents
+  - Because `hotpatch` doesn't allow multiple function definitions to be in
+	affect at the same time, this would cause a deadlock
 
 ## TODO
 - Figure out local hotpatching with functions and closures.

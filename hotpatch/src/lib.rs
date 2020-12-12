@@ -31,7 +31,15 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 	self.current_ptr = self.default_ptr;
 	Ok(())
     }
-    pub fn hotpatch(&mut self, lib_name: &str, mpath: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn hotpatch_fn(&mut self, ptr: fn(Args) -> Ret)
+		       -> Result<(), Box<dyn std::error::Error>> {
+	self.current_ptr = ptr;
+	if self.lib.is_some() {
+	    self.lib.take().unwrap().close()?;
+	}
+	Ok(())
+    }
+    pub fn hotpatch_lib(&mut self, lib_name: &str, mpath: &str) -> Result<(), Box<dyn std::error::Error>> {
 	unsafe {
 	    let lib = libloading::Library::new(lib_name)?;
 	    
@@ -72,8 +80,11 @@ impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
 	Self{r: RwLock::new(HotpatchImportInternal::new(ptr, sig)),
 	     mpath: mpath.trim_start_matches(|c| c!=':')}
     }
-    pub fn hotpatch(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
-	self.r.write()?.hotpatch(lib_name, self.mpath)
+    pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+	self.r.write()?.hotpatch_lib(lib_name, self.mpath)
+    }
+    pub fn hotpatch_fn(&self, ptr: fn(Args) -> Ret) -> Result<(), Box<dyn std::error::Error + '_>> {
+	self.r.write()?.hotpatch_fn(ptr)
     }
     pub fn restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.r.write()?.restore_default()

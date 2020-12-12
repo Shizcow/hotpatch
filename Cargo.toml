@@ -10,4 +10,5 @@ members = [
     "examples/multiple/multiple_bin",
     "examples/multiple/multiple_obj1",
     "examples/multiple/multiple_obj2",
+    "examples/local",
 ]
