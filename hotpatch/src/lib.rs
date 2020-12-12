@@ -31,12 +31,7 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 	Ok(())
     }
     pub fn restore_default(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-	//self.current_ptr = Box::new(*self.default_ptr);
-	self.clean()
-    }
-    pub fn hotpatch_fn(&mut self, ptr: fn(Args) -> Ret)
-		       -> Result<(), Box<dyn std::error::Error>> {
-	self.current_ptr = Box::new(ptr);
+	//self.current_ptr = Box::new(*self.default_ptr); // TODO
 	self.clean()
     }
     pub fn hotpatch_closure<F: Send + Sync + 'static>(&mut self, ptr: F)
@@ -87,18 +82,37 @@ impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
     pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.r.write()?.hotpatch_lib(lib_name, self.mpath)
     }
-    pub fn hotpatch_fn(&self, ptr: fn(Args) -> Ret) -> Result<(), Box<dyn std::error::Error + '_>> {
-	self.r.write()?.hotpatch_fn(ptr)
-    }
-    pub fn hotpatch_closure<F: Send + Sync + 'static>(&self, ptr: F)
-			       -> Result<(), Box<dyn std::error::Error + '_>>
-    where F: Fn(Args) -> Ret {
-	self.r.write()?.hotpatch_closure(ptr)
-    }
     pub fn restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.r.write()?.restore_default()
     }
 }
+
+#[macro_use]
+extern crate variadic_generics;
+va_expand_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+	     impl<$($va_idents: 'static,)* Ret: 'static> HotpatchImport<($($va_idents,)*), Ret> {
+		 pub fn hotpatch_closure<F: Send + Sync + 'static>(&self, ptr: F)
+							     -> Result<(), Box<dyn std::error::Error + '_>>
+		 where F: Fn($($va_idents),*) -> Ret {
+		     self.r.write()?.hotpatch_closure(move |args| ptr.call(args))
+		 }
+	     }
+}
+
+/*impl<A: 'static, Ret: 'static> HotpatchImport<(A,), Ret> {
+    pub fn experiment<F: Send + Sync + 'static>(&self, ptr: F)
+			       -> Result<(), Box<dyn std::error::Error + '_>>
+    where F: Fn(A) -> Ret {
+	self.r.write()?.hotpatch_closure(move |args| ptr.call(args))
+    }
+}
+impl<Ret: 'static> HotpatchImport<(()), Ret> {
+    pub fn experiment<F: Send + Sync + 'static>(&self, ptr: F)
+			       -> Result<(), Box<dyn std::error::Error + '_>>
+    where F: Fn() -> Ret {
+	self.r.write()?.hotpatch_closure(move |args| ptr.call(args))
+    }
+}*/
 impl<Args, Ret> FnOnce<Args> for HotpatchImport<Args, Ret> {
     type Output = Ret;
     extern "rust-call" fn call_once(self, args: Args) -> Ret {
