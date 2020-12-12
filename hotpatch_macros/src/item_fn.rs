@@ -10,6 +10,14 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
     let (fargs, output_type, inlineident, fn_name, sigtext, inline_fn, item)
 	= gather_info(fn_item, true);
 
+    if !cfg!(feature = "allow-main") && fn_name == "main" {
+	fn_name.span().unwrap().error("Attempted to set main as patchable")
+	    .note("calling main.hotpatch() would cause a deadlock")
+	    .help(format!("enable the 'allow-main' feature in hotpatch to ignore (I hope you're using #[main] or #[start])"))
+	    .emit();
+	return TokenStream::new();
+    }
+
     TokenStream::from(quote!{
 	#[allow(non_upper_case_globals)]
 	pub static #fn_name: hotpatch::Lazy<hotpatch::HotpatchImport<#fargs, #output_type>>

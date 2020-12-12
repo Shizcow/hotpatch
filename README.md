@@ -17,7 +17,6 @@ Key features:
 - `hotpatch_macros`: Proc macro stuff. End users can ignore
 
 ## TODO
-- Figure out how to hotpatch `main` via `#[start]` or `#[main]`
 - Figure out local hotpatching with functions and closures.
   - Can you overload `=` in Rust?
   - Can `Patchable::hotpatch` take arguements of different types that `.into` into a funciton pointer?

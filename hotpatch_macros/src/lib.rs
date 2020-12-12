@@ -1,3 +1,5 @@
+#![feature(proc_macro_diagnostic)]
+
 use proc_macro::TokenStream;
 use syn::{ItemFn, parse::Nothing};
 use std::sync::RwLock;
