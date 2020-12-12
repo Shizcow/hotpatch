@@ -15,14 +15,14 @@ pub struct HotpatchExport<T> {
 
 struct HotpatchImportInternal<Args, Ret> {
     current_ptr: Box<dyn Fn(Args) -> Ret + Send + Sync + 'static>,
-    default_ptr: Box<dyn Fn(Args) -> Ret + Send + Sync + 'static>,
+    default_ptr: fn(Args) -> Ret,
     sig: &'static str,
     lib: Option<libloading::Library>,
 }
 
 impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
     pub fn new(ptr: fn(Args) -> Ret, sig: &'static str) -> Self {
-	Self{current_ptr: Box::new(ptr), default_ptr: Box::new(ptr), lib: None, sig}
+	Self{current_ptr: Box::new(ptr), default_ptr: ptr, lib: None, sig}
     }
     fn clean(&mut self) -> Result<(), Box<dyn std::error::Error>> {
 	if self.lib.is_some() {
@@ -31,7 +31,7 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 	Ok(())
     }
     pub fn restore_default(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-	//self.current_ptr = Box::new(*self.default_ptr); // TODO
+	self.current_ptr = Box::new(self.default_ptr);
 	self.clean()
     }
     pub fn hotpatch_closure<F: Send + Sync + 'static>(&mut self, ptr: F)
