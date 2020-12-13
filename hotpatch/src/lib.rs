@@ -35,7 +35,7 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 	self.current_ptr = Box::new(self.default_ptr);
 	self.clean()
     }
-    pub fn hotpatch_closure<F: Send + Sync + 'static>(&mut self, ptr: F)
+    pub fn hotpatch_fn<F: Send + Sync + 'static>(&mut self, ptr: F)
 			       -> Result<(), Box<dyn std::error::Error>>
     where F: Fn(Args) -> Ret {
 	self.current_ptr = Box::new(ptr);
@@ -90,10 +90,10 @@ impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
 
 va_expand_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
 	     impl<$($va_idents: 'static,)* Ret: 'static> HotpatchImport<($($va_idents,)*), Ret> {
-		 pub fn hotpatch_closure<F: Send + Sync + 'static>(&self, ptr: F)
+		 pub fn hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F)
 							     -> Result<(), Box<dyn std::error::Error + '_>>
 		 where F: Fn($($va_idents),*) -> Ret {
-		     self.r.write()?.hotpatch_closure(move |args| ptr.call(args))
+		     self.r.write()?.hotpatch_fn(move |args| ptr.call(args))
 		 }
 	     }
 }

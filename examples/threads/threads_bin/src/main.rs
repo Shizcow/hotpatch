@@ -34,7 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // hotpatch in the middle of execution
     std::thread::sleep(time::Duration::from_micros(5));
-    foo.hotpatch("target/debug/libthreads_obj.so")?;
+    foo.hotpatch_lib("target/debug/libthreads_obj.so")?;
 
     // wait for threads to finish
     for child in children {
@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     std::thread::sleep(time::Duration::from_millis(500));
     // This should patch after the first call but before the second
-    bar.hotpatch("target/debug/libthreads_obj.so")?;
+    bar.hotpatch_lib("target/debug/libthreads_obj.so")?;
 
     // wait for threads to finish
     for child in children.into_iter().rev() {
