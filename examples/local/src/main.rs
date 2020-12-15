@@ -1,8 +1,15 @@
-use hotpatch::patchable;
+use hotpatch::*;
 
+/// I'm a functor
 #[patchable]
 fn foo(_: i32) {
     println!("I am Foo");
+}
+
+/// I'm a function with extra bits
+#[patch]
+fn tmp(_: i32) {
+
 }
 
 fn bar(_: i32) {

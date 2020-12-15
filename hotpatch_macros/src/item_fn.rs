@@ -7,7 +7,7 @@ use syn::{ItemFn, Ident, ReturnType::Type, FnArg::Typed};
 use crate::EXPORTNUM;
 
 pub fn patchable(fn_item: ItemFn) -> TokenStream {
-    let (fargs, output_type, fn_name, sigtext, item, targs)
+    let (fargs, output_type, fn_name, sigtext, mut item, targs)
 	= gather_info(fn_item);
 
     if !cfg!(feature = "allow-main") && fn_name == "main" {
@@ -17,7 +17,21 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 	    .emit();
 	return TokenStream::new();
     }
+
+    item.attrs.append(&mut syn::parse2::<syn::ItemStruct>(quote!{
+	///
+	/// ---
+	/// ## Hotpatch
+	/// **Warning**: This item is [`#[patchable]`](hotpatch::patchable). Runtime behavior may not
+	/// follow the source implementation. See the
+	/// [Hotpatch Documentation](hotpatch) for more information.
+	struct Dummy {}
+    }).unwrap().attrs);
+    
     TokenStream::from(quote!{
+	#[cfg(doc)]
+	#item
+	#[cfg(not(doc))]
 	#[allow(non_upper_case_globals)]
 	pub static #fn_name: hotpatch::Lazy<hotpatch::HotpatchImport<#fargs, #output_type>>
 	    = hotpatch::Lazy::new(|| {
@@ -31,7 +45,7 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 }
 
 pub fn patch(fn_item: ItemFn) -> TokenStream {
-    let (fargs, output_type, fn_name, sigtext, item, targs)
+    let (fargs, output_type, fn_name, sigtext, mut item, targs)
 	= gather_info(fn_item);
 
     let exnum;
@@ -40,19 +54,27 @@ pub fn patch(fn_item: ItemFn) -> TokenStream {
 	exnum = *r;
 	*r += 1;
     }
-    
-    let newsg = item.sig.ident.clone();
+
+    item.attrs.append(&mut syn::parse2::<syn::ItemStruct>(quote!{
+	///
+	/// ---
+	/// ## Hotpatch
+	/// This item is a [`#[patch]`](hotpatch::patch). It will silently define a public static
+	/// symbol `__HOTPATCH_EXPORT_N` for use in shared object files. See the
+	/// [Hotpatch Documentation](hotpatch) for more information.
+	struct Dummy {}
+    }).unwrap().attrs);
 
     let hotpatch_name = Ident::new(&format!("__HOTPATCH_EXPORT_{}", exnum), Span::call_site());
 
     TokenStream::from(quote!{
+	#item
+	#[doc(hidden)]
 	#[no_mangle]
 	pub static #hotpatch_name: hotpatch::HotpatchExport<fn(#fargs) -> #output_type> =
-	    hotpatch::HotpatchExport{ptr: move |args| #newsg #targs,
+	    hotpatch::HotpatchExport{ptr: move |args| #fn_name #targs,
 				     symbol: concat!(module_path!(), "::", stringify!(#fn_name)),
 				     sig: #sigtext};
-
-	#item
     })
 	
 }

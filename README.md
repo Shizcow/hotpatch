@@ -18,5 +18,4 @@ Key features:
 - Optional macro arguements to override automatic module handling (on both ends?)
 - Seperate nightly vs non-nightly features and use features to enable
 - Docs
-  - Does anything need `#[doc(hidden)]` from `proc_macro`s?
 - More examples
