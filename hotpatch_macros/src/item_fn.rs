@@ -13,7 +13,7 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
     if !cfg!(feature = "allow-main") && fn_name == "main" {
 	fn_name.span().unwrap().error("Attempted to set main as patchable")
 	    .note("calling main.hotpatch() would cause a deadlock")
-	    .help(format!("enable the 'allow-main' feature in hotpatch to ignore (I hope you're using #[main] or #[start])"))
+	    .help("enable the 'allow-main' feature in hotpatch to ignore (I hope you're using #[main] or #[start])")
 	    .emit();
 	return TokenStream::new();
     }

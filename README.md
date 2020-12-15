@@ -19,6 +19,4 @@ Key features:
 - Seperate nightly vs non-nightly features and use features to enable
 - Docs
   - Does anything need `#[doc(hidden)]` from `proc_macro`s?
-- See how far out variadic template parameters are so the extra layer of indirection
-  required by the tuple Fn args can go away
 - More examples
