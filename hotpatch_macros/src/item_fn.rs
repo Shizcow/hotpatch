@@ -7,7 +7,7 @@ use syn::{ItemFn, Ident, ReturnType::Type, FnArg::Typed};
 use crate::EXPORTNUM;
 
 pub fn patchable(fn_item: ItemFn) -> TokenStream {
-    let (fargs, output_type, inlineident, fn_name, sigtext, inline_fn, item)
+    let (fargs, output_type, fn_name, sigtext, item, targs)
 	= gather_info(fn_item, true);
 
     if !cfg!(feature = "allow-main") && fn_name == "main" {
@@ -18,14 +18,15 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 	return TokenStream::new();
     }
 
+    let newsg = item.sig.ident.clone();
+
     TokenStream::from(quote!{
 	#[allow(non_upper_case_globals)]
 	pub static #fn_name: hotpatch::Lazy<hotpatch::HotpatchImport<#fargs, #output_type>>
 	    = hotpatch::Lazy::new(|| {
-		#inline_fn
 		#[inline(always)]
 		#item
-		hotpatch::HotpatchImport::new(#inlineident,
+		hotpatch::HotpatchImport::new(move |args| #newsg #targs,
 					      concat!(module_path!(), "::", stringify!(#fn_name)),
 					      #sigtext)
 	    });
@@ -33,7 +34,7 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 }
 
 pub fn patch(fn_item: ItemFn) -> TokenStream {
-    let (fargs, output_type, inlineident, fn_name, sigtext, inline_fn, item)
+    let (fargs, output_type, fn_name, sigtext, item, targs)
 	= gather_info(fn_item, false);
 
     let exnum;
@@ -42,34 +43,29 @@ pub fn patch(fn_item: ItemFn) -> TokenStream {
 	exnum = *r;
 	*r += 1;
     }
+    
+    let newsg = item.sig.ident.clone();
 
     let hotpatch_name = Ident::new(&format!("__HOTPATCH_EXPORT_{}", exnum), Span::call_site());
 
     TokenStream::from(quote!{
 	#[no_mangle]
 	pub static #hotpatch_name: hotpatch::HotpatchExport<fn(#fargs) -> #output_type> =
-	    hotpatch::HotpatchExport{ptr: #inlineident,
+	    hotpatch::HotpatchExport{ptr: move |args| #newsg #targs,
 				     symbol: concat!(module_path!(), "::", stringify!(#fn_name)),
 				     sig: #sigtext};
-
-	#inline_fn // TODO: can this be put inside the above definition?
 
 	#item
     })
 	
 }
 
-fn gather_info(mut item: ItemFn, mangle_src: bool) -> (syn::Type, syn::Type, Ident, Ident, String, ItemFn, ItemFn) {
+fn gather_info(mut item: ItemFn, mangle_src: bool) -> (syn::Type, syn::Type, Ident, String, ItemFn, proc_macro2::TokenStream) {
     let fn_name = item.sig.ident.clone();
-    let mut inline_fn = item.clone();
-    inline_fn.sig.ident = Ident::new(&format!("patch_proc_inline_{}", fn_name),
-				     Span::call_site());
-    let inlineident = inline_fn.sig.ident.clone();
     if mangle_src {
 	item.sig.ident = Ident::new(&format!("patch_proc_source_{}", fn_name),
 				    Span::call_site());
     }
-    let newident = &item.sig.ident;
     let output_type = if let Type(_, t) = &item.sig.output {
 	*(t.clone())
     } else {
@@ -104,13 +100,9 @@ fn gather_info(mut item: ItemFn, mangle_src: bool) -> (syn::Type, syn::Type, Ide
 	|(i, _)| syn::parse::<syn::LitInt>(i.to_string().parse::<TokenStream>().unwrap()).unwrap()
     ).collect::<Vec<syn::LitInt>>();
     
-    *inline_fn.block = syn::parse2::<syn::Block>(quote!{
-	{
-	    #newident (#(args.#argnums),*)
-	}
-    }).unwrap();
-
-    inline_fn.sig.inputs.clear();
+    let targs: proc_macro2::TokenStream = (quote!{
+	(#(args.#argnums),*)
+    }).into();
 
     let fargs = syn::parse2::<syn::Type>(
 	if args.len() == 0 {quote!{
@@ -118,10 +110,6 @@ fn gather_info(mut item: ItemFn, mangle_src: bool) -> (syn::Type, syn::Type, Ide
 	}} else {quote!{
 	    (#(#args),*,)
 	}}).unwrap();
-	
-    inline_fn.sig.inputs.push(syn::parse2::<syn::FnArg>(quote!{
-	args: #fargs
-    }).unwrap());
 
-    (fargs, output_type, inlineident, fn_name, sigtext, inline_fn, item)
+    (fargs, output_type, fn_name, sigtext, item, targs)
 }
