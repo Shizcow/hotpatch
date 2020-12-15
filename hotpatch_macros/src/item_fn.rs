@@ -8,7 +8,7 @@ use crate::EXPORTNUM;
 
 pub fn patchable(fn_item: ItemFn) -> TokenStream {
     let (fargs, output_type, fn_name, sigtext, item, targs)
-	= gather_info(fn_item, true);
+	= gather_info(fn_item);
 
     if !cfg!(feature = "allow-main") && fn_name == "main" {
 	fn_name.span().unwrap().error("Attempted to set main as patchable")
@@ -17,16 +17,13 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 	    .emit();
 	return TokenStream::new();
     }
-
-    let newsg = item.sig.ident.clone();
-
     TokenStream::from(quote!{
 	#[allow(non_upper_case_globals)]
 	pub static #fn_name: hotpatch::Lazy<hotpatch::HotpatchImport<#fargs, #output_type>>
 	    = hotpatch::Lazy::new(|| {
 		#[inline(always)]
 		#item
-		hotpatch::HotpatchImport::new(move |args| #newsg #targs,
+		hotpatch::HotpatchImport::new(move |args| #fn_name #targs,
 					      concat!(module_path!(), "::", stringify!(#fn_name)),
 					      #sigtext)
 	    });
@@ -35,7 +32,7 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 
 pub fn patch(fn_item: ItemFn) -> TokenStream {
     let (fargs, output_type, fn_name, sigtext, item, targs)
-	= gather_info(fn_item, false);
+	= gather_info(fn_item);
 
     let exnum;
     { // scope is used so EXPORTNUM is unlocked faster
@@ -60,12 +57,8 @@ pub fn patch(fn_item: ItemFn) -> TokenStream {
 	
 }
 
-fn gather_info(mut item: ItemFn, mangle_src: bool) -> (syn::Type, syn::Type, Ident, String, ItemFn, proc_macro2::TokenStream) {
+fn gather_info(item: ItemFn) -> (syn::Type, syn::Type, Ident, String, ItemFn, proc_macro2::TokenStream) {
     let fn_name = item.sig.ident.clone();
-    if mangle_src {
-	item.sig.ident = Ident::new(&format!("patch_proc_source_{}", fn_name),
-				    Span::call_site());
-    }
     let output_type = if let Type(_, t) = &item.sig.output {
 	*(t.clone())
     } else {

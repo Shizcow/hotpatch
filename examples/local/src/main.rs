@@ -1,7 +1,7 @@
 use hotpatch::patchable;
 
 #[patchable]
-fn foo(_: i32, _: f64) {
+fn foo(_: i32) {
     println!("I am Foo");
 }
 
