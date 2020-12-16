@@ -270,6 +270,16 @@ impl<VaGen: 'static, Ret: 'static> Patchable<VaGen, Ret> {
     where F: Fn(VaGen) -> Ret {
 	// The actual implementation is below
     }
+    /// Like [`hotpatch_fn`](Patchable::hotpatch_fn) but uses
+    /// unsafe features to completly bypass the
+    /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
+    /// Can be used to patch the current function or parent functions.
+    /// **Use with caution**.
+    pub unsafe fn force_hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
+	Result<(), Box<dyn std::error::Error + '_>>
+    where F: Fn(VaGen) -> Ret {
+	// The actual implementation is below
+    }
 }
 #[cfg(not(doc))]
 #[cfg(not(feature = "large-signatures"))]
@@ -284,6 +294,15 @@ va_expand_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
 	    Result<(), Box<dyn std::error::Error + '_>>
 	where F: Fn($($va_idents),*) -> Ret {
 	    self.lazy.as_ref().unwrap().try_write()?.hotpatch_fn(move |args| ptr.call(args))
+	}
+	pub unsafe fn force_hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
+	    Result<(), Box<dyn std::error::Error + '_>>
+	where F: Fn($($va_idents),*) -> Ret {
+	    let sref = self as *const Self as *mut Self;
+	    let mut rref = (*sref).lazy.take().unwrap();
+	    let reslt = rref.get_mut().unwrap().hotpatch_fn(move |args| ptr.call(args));
+	    *(*sref).lazy = Some(rref);
+	    reslt
 	}
     }
 }

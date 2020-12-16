@@ -7,7 +7,7 @@ use syn::{ItemFn, Ident, ReturnType::Type, FnArg::Typed};
 use crate::EXPORTNUM;
 
 pub fn patchable(fn_item: ItemFn) -> TokenStream {
-    let (fargs, output_type, fn_name, sigtext, mut item, targs)
+    let (fargs, output_type, mut fn_name, sigtext, mut item, targs)
 	= gather_info(fn_item);
 
     if !cfg!(feature = "allow-main") && fn_name == "main" {
@@ -27,13 +27,22 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 	/// [Hotpatch Documentation](hotpatch) for more information.
 	struct Dummy {}
     }).unwrap().attrs);
+
+    let docitem = item.sig.clone();
+    let doc_header = quote!{
+	#[cfg(doc)]
+	#docitem {}
+    };
+
+    let item_name = fn_name.clone();
+    fn_name = Ident::new("__hotpatch_internal_fn_mangle_name", Span::call_site());
+    item.sig.ident = fn_name.clone();
     
     TokenStream::from(quote!{
-	#[cfg(doc)]
-	#item
+	#doc_header
 	#[cfg(not(doc))]
 	#[allow(non_upper_case_globals)]
-	pub static #fn_name: hotpatch::Patchable<#fargs, #output_type> = hotpatch::Patchable::__new(
+	pub static #item_name: hotpatch::Patchable<#fargs, #output_type> = hotpatch::Patchable::__new(
 	    || {
 		#[inline(always)]
 		#item
