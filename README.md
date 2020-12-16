@@ -14,10 +14,8 @@ Key features:
 	affect at the same time, this would cause a deadlock
 
 ## TODO
-- `unsafe` patch functions
 - Use normal macros to generate crate name in proc_macros
   so that renaming `hotpatch` will still work
 - Raise an issue for the root cause of `libloading::Library`'s memory leak
 - Optional macro arguements to override automatic module handling (on both ends?)
 - Seperate nightly vs non-nightly features and use features to enable
-- More examples
