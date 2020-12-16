@@ -31,10 +31,10 @@ pub fn patchable(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
 	struct Dummy {}
     }).unwrap().attrs);
 
-    let docitem = item.sig.clone();
+    let docitem = item.clone();
     let doc_header = quote!{
 	#[cfg(doc)]
-	#docitem {}
+	#docitem
     };
 
     let item_name = fn_name.clone();

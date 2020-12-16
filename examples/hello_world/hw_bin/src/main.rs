@@ -3,7 +3,7 @@ use hotpatch::patchable;
 mod a {
     use hotpatch::patchable;
     #[patchable]
-    fn bar(a: i32) {
+    pub fn bar(a: i32) {
 	println!("I am from source bar. I have {} as an arg. I am module aware.", a);
     }
 }
