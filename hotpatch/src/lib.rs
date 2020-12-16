@@ -35,7 +35,9 @@
 //!
 //! ## Features
 //! For reference, this crate recognizes the following features:
-//! - `allow-main`: Allow setting `main` as [`#[patchable]`](patchable). Use with caution.
+//! - `allow-main`: Allow setting `main` as [`#[patchable]`](patchable). Only useful if using `#[start]` or `#[main]`.
+//! - `redirect-main`: Same as `allow-main` but also generates a stub `#[main]` to call the [`Patchable`](Patchable).
+//!   If you just want to hotpatch `main`, this is probably the right feature. Requires nightly and `#[feature(main)]`.
 //! - `large-signatures`: Tweaks the variadic generics engine. See [`hotpatch_fn`](Patchable::hotpatch_fn).
 //!
 //! ## Warnings
@@ -59,7 +61,7 @@
 //! This is a deliberate saftey feature. However, it can be bypassed by using the
 //! `force` methods within [`Patchable`](Patchable). This allows multiple
 //! functions definitions to run at once. This is unsafe, but allows for some really
-//! interesting things, such as hotpatching `main`.
+//! interesting things such as hotpatching `main`.
 
 use std::sync::RwLock;
 use simple_error::bail;
