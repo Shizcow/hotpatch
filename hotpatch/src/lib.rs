@@ -53,6 +53,13 @@
 //!
 //! The `try` methods within [`Patchable`](Patchable) provide additional checks
 //! for this, but may cause other problems in multithreaded environments.
+//!
+//! ## Bypassing Thread Saftey
+//! The previous section mentions being unable to hotpatch currently running functions.
+//! This is a deliberate saftey feature. However, it can be bypassed by using the
+//! `force` methods within [`Patchable`](Patchable). This allows multiple
+//! functions definitions to run at once. This is unsafe, but allows for some really
+//! interesting things, such as hotpatching `main`.
 
 use std::sync::RwLock;
 use simple_error::bail;
