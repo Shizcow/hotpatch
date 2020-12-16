@@ -5,15 +5,15 @@
 use std::sync::RwLock;
 use simple_error::bail;
 
-#[doc(hidden)] // TODO: invert and wrapper so that HotpatchImport is public facing
+#[doc(hidden)]
 pub use once_cell::sync::Lazy;
 use variadic_generics::*;
 pub use hotpatch_macros::*;
 
-/// Created by (`#[patch]`)[patch]. Internal use only.
+/// Created by [`#[patch]`](patch). Internal use only.
 ///
-/// Creates a public static `#[no_mangle]` instance to be imported in another
-/// binary by (`Patchable::hotpatch()`)[Patchable::hotpatch].
+/// Creates a `#[no_mangle] pub static` instance to be imported in another
+/// binary by [`Patchable`](Patchable) methods.
 pub struct HotpatchExport<T> {
     symbol: &'static str, // field order is important
     sig: &'static str,
@@ -27,7 +27,8 @@ impl<T> HotpatchExport<T> {
     }
 }
 
-/// Created by (`#[patchable]`)[patchable]
+/// Created by [`#[patchable]`](patchable). A functor capable of overwriting its
+/// own function.
 pub struct Patchable<Args, Ret> {
     lazy: Lazy<RwLock<HotpatchImportInternal<Args, Ret>>>,
 }
@@ -90,6 +91,7 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
     }
 }
 
+// passthrough methods
 impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
     #[doc(hidden)]
     pub const fn __new(ptr: fn() -> RwLock<HotpatchImportInternal<Args, Ret>>) -> Self {
@@ -99,22 +101,102 @@ impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
     pub fn __new_internal(ptr: fn(Args) -> Ret, mpath: &'static str, sig: &'static str) -> RwLock<HotpatchImportInternal<Args, Ret>> {
 	RwLock::new(HotpatchImportInternal::new(ptr, mpath, sig))
     }
+    /// Hotpatch this functor with functionality defined in `lib_name`.
+    /// Will search a shared object `cdylib` file for [`#[patch]`](patch) exports,
+    /// finding the definition that matches module path and signature.
+    ///
+    /// ## Example
+    /// ```
+    /// #[patchable]
+    /// fn foo() {}
+    ///
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///   foo(); // does something
+    ///   foo.hotpatch_lib("libtest.so")?;
+    ///   foo(); // does something else
+    ///   Ok(())
+    /// }
+    /// ```
     pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.lazy.write()?.hotpatch_lib(lib_name)
     }
+    /// Hotpatch this functor back to its original definition.
+    ///
+    /// ## Example
+    /// ```
+    /// #[patchable]
+    /// fn foo() {}
+    ///
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///   foo(); // does A
+    ///   foo.hotpatch_lib("libtest.so")?;
+    ///   foo(); // does B
+    ///   foo.restore_default();
+    ///   foo(); // does A again
+    ///   Ok(())
+    /// }
+    /// ```
     pub fn restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.lazy.write()?.restore_default()
     }
 }
 
+#[cfg(doc)]
+impl<VaGen: 'static, Ret: 'static> Patchable<VaGen, Ret> {
+    /// Hotpatch this functor with functionality defined in `ptr`.
+    /// `ptr` can be a function pointer or `move` closure with the
+    /// same type signature as the functor's function.
+    ///
+    /// ## Example
+    /// ```
+    /// #[patchable]
+    /// fn foo(_: i32, _: i32, _: i32) {}
+    ///
+    /// fn bar(_: i32, _: i32, _: i32) {}
+    /// 
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///   foo.hotpatch_fn(bar)?;
+    ///   foo.hotpatch_fn(move |a, b, c| println!("{} {} {}", a, b, c))?;
+    ///   Ok(())
+    /// }
+    /// ```
+    ///
+    /// ## VaArgs Note
+    /// Implementation is defined with the [`variadic_generics`](https://docs.rs/variadic_generics)
+    /// crate. This means
+    /// a macro is used to define a finite but large number of templated inputs.
+    /// If using functions with large numbers of inputs and `hotpatch_fn` does not
+    /// appear to be defined, compile `hotpatch` with the `large-signatures` feature
+    /// to increase the number of supported arguements.
+    ///
+    /// This is the only place where `large_signatures` is needed. Large signature
+    /// functions are supported out of the box for [`hotpatch_lib`](Patchable::hotpatch_lib) and
+    /// [`restore_default`](Patchable::restore_default).
+    pub fn hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
+	Result<(), Box<dyn std::error::Error + '_>>
+    where F: Fn(VaGen) -> Ret { }
+}
+#[cfg(not(doc))]
+#[cfg(not(feature = "large-signatures"))]
 va_expand_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-	     impl<$($va_idents: 'static,)* Ret: 'static> Patchable<($($va_idents,)*), Ret> {
-		 pub fn hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F)
-							     -> Result<(), Box<dyn std::error::Error + '_>>
-		 where F: Fn($($va_idents),*) -> Ret {
-		     self.lazy.write()?.hotpatch_fn(move |args| ptr.call(args))
-		 }
-	     }
+		      impl<$($va_idents: 'static,)* Ret: 'static> Patchable<($($va_idents,)*), Ret> {
+	pub fn hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
+	    Result<(), Box<dyn std::error::Error + '_>>
+	where F: Fn($($va_idents),*) -> Ret {
+	    self.lazy.write()?.hotpatch_fn(move |args| ptr.call(args))
+	}
+    }
+}
+#[cfg(not(doc))]
+#[cfg(feature = "large-signatures")]
+va_expand_more_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+		      impl<$($va_idents: 'static,)* Ret: 'static> Patchable<($($va_idents,)*), Ret> {
+			  pub fn hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
+			      Result<(), Box<dyn std::error::Error + '_>>
+			  where F: Fn($($va_idents),*) -> Ret {
+			      self.lazy.write()?.hotpatch_fn(move |args| ptr.call(args))
+			  }
+		      }
 }
 
 impl<Args, Ret> FnOnce<Args> for Patchable<Args, Ret> {
