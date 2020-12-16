@@ -18,4 +18,4 @@ Key features:
   so that renaming `hotpatch` will still work
 - Raise an issue for the root cause of `libloading::Library`'s memory leak
 - Optional macro arguements to override automatic module handling (on both ends?)
-- Seperate nightly vs non-nightly features and use features to enable
+- Make README nicer
