@@ -39,7 +39,7 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
     fn_name = Ident::new("__hotpatch_internal_fn_mangle_name", Span::call_site());
     item.sig.ident = fn_name.clone();
 
-    let redirected_main = if cfg!(feature = "redirect-main") && fn_name == "main" {
+    let redirected_main = if cfg!(feature = "redirect-main") && item_name == "main" {
 	quote!{
 	    #[main]
 	    fn __hotpatch_redirect_main() -> #output_type {

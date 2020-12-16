@@ -21,6 +21,7 @@
 //!   foo(); // does nothing
 //!   foo.hotpatch_lib("libsomething.so")?;
 //!   foo(); // does something totally different!
+//!   Ok(())
 //! }
 //! ```
 //! What about defining a patch? Also easy:
