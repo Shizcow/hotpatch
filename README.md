@@ -17,5 +17,4 @@ Key features:
 - Use normal macros to generate crate name in proc_macros
   so that renaming `hotpatch` will still work
 - Raise an issue for the root cause of `libloading::Library`'s memory leak
-- Optional macro arguements to override automatic module handling (on both ends?)
 - Make README nicer

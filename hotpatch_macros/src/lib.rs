@@ -3,8 +3,9 @@
 //! You probably want documentation for the `hotpatch` crate.
 
 use proc_macro::TokenStream;
-use syn::{ItemFn, parse::Nothing};
+use syn::{ItemFn, parse::Nothing, Path};
 use std::sync::RwLock;
+use quote::ToTokens;
 
 mod item_fn;
 
@@ -30,10 +31,12 @@ lazy_static::lazy_static! {
 /// ```
 #[proc_macro_attribute]
 pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
-    syn::parse_macro_input!(attr as Nothing); // I take no args
-
+    let modpath = get_modpath(attr);
+    if modpath.is_err() {
+	return TokenStream::new();
+    }
     if let Ok(fn_item) = syn::parse::<ItemFn>(input) {
-	item_fn::patchable(fn_item)
+	item_fn::patchable(fn_item, modpath.unwrap())
     } else {
 	panic!("I can't hotpatch this yet!");
     }
@@ -58,12 +61,31 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn patch(attr: TokenStream, input: TokenStream) -> TokenStream {
-    syn::parse_macro_input!(attr as Nothing); // I take no args
-
+    let modpath = get_modpath(attr);
+    if modpath.is_err() {
+	return TokenStream::new();
+    }
     if let Ok(fn_item) = syn::parse::<ItemFn>(input) {
-	item_fn::patch(fn_item)
+	item_fn::patch(fn_item, modpath.unwrap())
     } else {
 	panic!("I can't patch this yet!");
     }
 }
 
+fn get_modpath(attr: TokenStream) -> Result<Option<String>, ()> {
+    if syn::parse::<Nothing>(attr.clone()).is_ok() {
+	Ok(None)
+    } else {
+	let path = syn::parse::<Path>(attr.clone());
+	if path.is_err() {
+	    proc_macro::Span::call_site().error("Expected module path")
+		.help("Just use #[patchable]; it's already module aware.")
+		.help("If you're trying to spoof a module path, the supplied arguement is an invalid path")
+		.emit();
+	    return Err(());
+	}
+	let mut ts = syn::export::TokenStream2::new();
+	path.unwrap().to_tokens(&mut ts);
+	Ok(Some(ts.to_string().replace(" ", "")))
+    }
+}

@@ -6,7 +6,7 @@ use syn::{ItemFn, Ident, ReturnType::Type, FnArg::Typed};
 
 use crate::EXPORTNUM;
 
-pub fn patchable(fn_item: ItemFn) -> TokenStream {
+pub fn patchable(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
     let (fargs, output_type, mut fn_name, sigtext, mut item, targs)
 	= gather_info(fn_item);
 
@@ -49,6 +49,13 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
     } else {
 	quote!{}
     };
+
+    let mname = match modpath {
+	Some(mpath) => (quote!{concat!("::", #mpath)}),
+	None => (quote!{
+	    concat!(module_path!(), "::", stringify!(#item_name))
+	})
+    };
     
     TokenStream::from(quote!{
 	#doc_header
@@ -59,14 +66,14 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 		#[inline(always)]
 		#item
 		hotpatch::Patchable::__new_internal(move |args| #fn_name #targs,
-						    concat!(module_path!(), "::", stringify!(#item_name)),
+						    #mname,
 						    #sigtext)
 	    });
 	#redirected_main
     })
 }
 
-pub fn patch(fn_item: ItemFn) -> TokenStream {
+pub fn patch(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
     let (fargs, output_type, fn_name, sigtext, mut item, targs)
 	= gather_info(fn_item);
 
@@ -89,13 +96,20 @@ pub fn patch(fn_item: ItemFn) -> TokenStream {
 
     let hotpatch_name = Ident::new(&format!("__HOTPATCH_EXPORT_{}", exnum), Span::call_site());
 
+    let mname = match modpath {
+	Some(mpath) => (quote!{concat!("::", #mpath)}),
+	None => (quote!{
+	    concat!(module_path!(), "::", stringify!(#fn_name))
+	})
+    };
+
     TokenStream::from(quote!{
 	#item
 	#[doc(hidden)]
 	#[no_mangle]
 	pub static #hotpatch_name: hotpatch::HotpatchExport<fn(#fargs) -> #output_type> =
 	    hotpatch::HotpatchExport::__new(move |args| #fn_name #targs,
-					    concat!(module_path!(), "::", stringify!(#fn_name)),
+					    #mname,
 					    #sigtext);
     })
 	
