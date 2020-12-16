@@ -33,21 +33,13 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 	#item
 	#[cfg(not(doc))]
 	#[allow(non_upper_case_globals)]
-	/*pub static #fn_name: hotpatch::Lazy<hotpatch::HotpatchImport<#fargs, #output_type>>
-	    = hotpatch::Lazy::new(|| {
-		#[inline(always)]
-		#item
-		hotpatch::HotpatchImport::new(move |args| #fn_name #targs,
-					      concat!(module_path!(), "::", stringify!(#fn_name)),
-	#sigtext)
-    });*/
 	pub static #fn_name: hotpatch::Patchable<#fargs, #output_type> = hotpatch::Patchable::new(
 	    || {
 		#[inline(always)]
 		#item
-		hotpatch::HotpatchImport::new(move |args| #fn_name #targs,
-					      concat!(module_path!(), "::", stringify!(#fn_name)),
-					      #sigtext)
+		hotpatch::Patchable::__new_internal(move |args| #fn_name #targs,
+						    concat!(module_path!(), "::", stringify!(#fn_name)),
+						    #sigtext)
 	    });
     })
 }

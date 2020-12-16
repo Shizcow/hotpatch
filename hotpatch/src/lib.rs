@@ -20,16 +20,18 @@ pub struct HotpatchExport<T> {
     pub ptr: T,
 }
 
-struct HotpatchImportInternal<Args, Ret> {
+#[doc(hidden)]
+pub struct HotpatchImportInternal<Args, Ret> {
     current_ptr: Box<dyn Fn(Args) -> Ret + Send + Sync + 'static>,
     default_ptr: fn(Args) -> Ret,
     sig: &'static str,
     lib: Option<libloading::Library>,
+    mpath: &'static str,
 }
 
 impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
-    pub fn new(ptr: fn(Args) -> Ret, sig: &'static str) -> Self {
-	Self{current_ptr: Box::new(ptr), default_ptr: ptr, lib: None, sig}
+    pub fn new(ptr: fn(Args) -> Ret, sig: &'static str, mpath: &'static str) -> Self {
+	Self{current_ptr: Box::new(ptr), default_ptr: ptr, lib: None, sig, mpath: mpath.trim_start_matches(|c| c!=':')}
     }
     fn clean(&mut self) -> Result<(), Box<dyn std::error::Error>> {
 	if self.lib.is_some() {
@@ -47,7 +49,7 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 	self.current_ptr = Box::new(ptr);
 	self.clean()
     }
-    pub fn hotpatch_lib(&mut self, lib_name: &str, mpath: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn hotpatch_lib(&mut self, lib_name: &str) -> Result<(), Box<dyn std::error::Error>> {
 	unsafe {
 	    let lib = libloading::Library::new(lib_name)?;
 	    
@@ -58,11 +60,11 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 		let exports: libloading::Symbol<*mut HotpatchExport<fn(Args) -> Ret>>
 		    = lib.get(symbol_name.as_bytes()).map_err(
 			|_| format!("Hotpatch for {} failed: symbol not found in library {}",
-				    mpath, lib_name))?;
+				    self.mpath, lib_name))?;
 		let export_obj = &**exports;
-		if export_obj.symbol.trim_start_matches(|c| c!=':') == mpath { // found the correct symbol
+		if export_obj.symbol.trim_start_matches(|c| c!=':') == self.mpath { // found the correct symbol
 		    if self.sig != export_obj.sig {
-			bail!("Hotpatch for {} failed: symbol found but of wrong type. Expected {} but found {}", mpath, self.sig, export_obj.sig);
+			bail!("Hotpatch for {} failed: symbol found but of wrong type. Expected {} but found {}", self.mpath, self.sig, export_obj.sig);
 		    }
 		    self.current_ptr = Box::new(export_obj.ptr);
 		    self.clean()?;
@@ -77,30 +79,22 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 }
 
 pub struct Patchable<Args, Ret> {
-    pub lazy: Lazy<HotpatchImport<Args, Ret>>,
+    pub lazy: Lazy<RwLock<HotpatchImportInternal<Args, Ret>>>,
 }
 
 impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
-    pub const fn new(ptr: fn() -> HotpatchImport<Args, Ret>) -> Self {
+    pub const fn new(ptr: fn() -> RwLock<HotpatchImportInternal<Args, Ret>>) -> Self {
 	Self{lazy: Lazy::new(ptr)}
     }
+    #[doc(hidden)]
+    pub fn __new_internal(ptr: fn(Args) -> Ret, mpath: &'static str, sig: &'static str) -> RwLock<HotpatchImportInternal<Args, Ret>> {
+	RwLock::new(HotpatchImportInternal::new(ptr, mpath, sig))
+    }
     pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
-	self.lazy.r.write()?.hotpatch_lib(lib_name, self.lazy.mpath)
+	self.lazy.write()?.hotpatch_lib(lib_name)
     }
     pub fn restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
-	self.lazy.r.write()?.restore_default()
-    }
-}
-
-pub struct HotpatchImport<Args, Ret> {
-    r: RwLock<HotpatchImportInternal<Args, Ret>>,
-    mpath: &'static str,
-}
-
-impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
-    pub fn new(ptr: fn(Args) -> Ret, mpath: &'static str, sig: &'static str) -> Self {
-	Self{r: RwLock::new(HotpatchImportInternal::new(ptr, sig)),
-	     mpath: mpath.trim_start_matches(|c| c!=':')}
+	self.lazy.write()?.restore_default()
     }
 }
 
@@ -109,7 +103,7 @@ va_expand_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
 		 pub fn hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F)
 							     -> Result<(), Box<dyn std::error::Error + '_>>
 		 where F: Fn($($va_idents),*) -> Ret {
-		     self.lazy.r.write()?.hotpatch_fn(move |args| ptr.call(args))
+		     self.lazy.write()?.hotpatch_fn(move |args| ptr.call(args))
 		 }
 	     }
 }
@@ -125,16 +119,16 @@ impl<Args, Ret> FnOnce<Args> for Patchable<Args, Ret> {
 	// When variadic template arguements are introduced, the stored function pointer
 	// will be type-aware.
 	//std::ops::Fn::call(&self.r.read().unwrap().ptr, args)
-	(self.lazy.r.read().unwrap().current_ptr)(args)
+	(self.lazy.read().unwrap().current_ptr)(args)
     }
 }
 impl<Args, Ret> FnMut<Args> for Patchable<Args, Ret> {
     extern "rust-call" fn call_mut(&mut self, args: Args) -> Ret {
-	(self.lazy.r.read().unwrap().current_ptr)(args)
+	(self.lazy.read().unwrap().current_ptr)(args)
     }
 }
 impl<Args, Ret> Fn<Args> for Patchable<Args, Ret> {
     extern "rust-call" fn call(&self, args: Args) -> Ret {
-	(self.lazy.r.read().unwrap().current_ptr)(args)
+	(self.lazy.read().unwrap().current_ptr)(args)
     }
 }
