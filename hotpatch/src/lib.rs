@@ -177,6 +177,18 @@ impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
     pub fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.lazy.as_ref().unwrap().try_write()?.hotpatch_lib(lib_name)
     }
+    /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
+    /// unsafe features to completly bypass the
+    /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
+    /// Can be used to patch the current function or parent functions.
+    /// **Use with caution**.
+    pub unsafe fn force_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+	let sref = self as *const Self as *mut Self;
+	let mut rref = (*sref).lazy.take().unwrap();
+	let reslt = rref.get_mut().unwrap().hotpatch_lib(lib_name);
+	*(*sref).lazy = Some(rref);
+	reslt
+    }
     /// Hotpatch this functor back to its original definition.
     ///
     /// ## Example
@@ -201,16 +213,17 @@ impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
     pub fn try_restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.lazy.as_ref().unwrap().try_write()?.restore_default()
     }
+    /// Like [`restore_default`](Patchable::restore_default) but uses
+    /// unsafe features to completly bypass the
+    /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
+    /// Can be used to patch the current function or parent functions.
+    /// **Use with caution**.
     pub unsafe fn force_restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
 	let sref = self as *const Self as *mut Self;
 	let mut rref = (*sref).lazy.take().unwrap();
-	let wwref = rref.get_mut();
-	let wref = wwref.unwrap();
-	let ptr = wref.default_ptr;
-	let sig = wref.sig;
-	let mpath = wref.mpath;
-	*(*sref).lazy = Some(RwLock::new(HotpatchImportInternal::new(ptr, mpath, sig)));
-	Ok(())
+	let reslt = rref.get_mut().unwrap().restore_default();
+	*(*sref).lazy = Some(rref);
+	reslt
     }
 }
 
