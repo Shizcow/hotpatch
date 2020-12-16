@@ -19,6 +19,8 @@ pub fn patchable(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
 	return TokenStream::new();
     }
 
+    let vis = item.vis.clone(); // pass through pub
+
     item.attrs.append(&mut syn::parse2::<syn::ItemStruct>(quote!{
 	///
 	/// ---
@@ -61,7 +63,7 @@ pub fn patchable(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
 	#doc_header
 	#[cfg(not(doc))]
 	#[allow(non_upper_case_globals)]
-	pub static #item_name: hotpatch::Patchable<#fargs, #output_type> = hotpatch::Patchable::__new(
+	#vis static #item_name: hotpatch::Patchable<#fargs, #output_type> = hotpatch::Patchable::__new(
 	    || {
 		#[inline(always)]
 		#item
