@@ -1,13 +1,19 @@
 #![feature(unboxed_closures)]
 #![feature(fn_traits)]
+#![feature(const_fn_fn_ptr_basics)]
 
 use std::sync::RwLock;
 use simple_error::bail;
 
+#[doc(hidden)] // TODO: invert and wrapper so that HotpatchImport is public facing
 pub use once_cell::sync::Lazy;
 use variadic_generics::*;
 pub use hotpatch_macros::*;
 
+/// Created by (`#[patch]`)[patch]. Internal use only.
+///
+/// Creates a public static `#[no_mangle]` instance to be imported in another
+/// binary by (`Patchable::hotpatch()`)[Patchable::hotpatch].
 pub struct HotpatchExport<T> {
     pub symbol: &'static str, // field order is important
     pub sig: &'static str,
@@ -70,6 +76,22 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
     }
 }
 
+pub struct Patchable<Args, Ret> {
+    pub lazy: Lazy<HotpatchImport<Args, Ret>>,
+}
+
+impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
+    pub const fn new(ptr: fn() -> HotpatchImport<Args, Ret>) -> Self {
+	Self{lazy: Lazy::new(ptr)}
+    }
+    pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+	self.lazy.r.write()?.hotpatch_lib(lib_name, self.lazy.mpath)
+    }
+    pub fn restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
+	self.lazy.r.write()?.restore_default()
+    }
+}
+
 pub struct HotpatchImport<Args, Ret> {
     r: RwLock<HotpatchImportInternal<Args, Ret>>,
     mpath: &'static str,
@@ -80,25 +102,19 @@ impl<Args: 'static, Ret: 'static> HotpatchImport<Args, Ret> {
 	Self{r: RwLock::new(HotpatchImportInternal::new(ptr, sig)),
 	     mpath: mpath.trim_start_matches(|c| c!=':')}
     }
-    pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
-	self.r.write()?.hotpatch_lib(lib_name, self.mpath)
-    }
-    pub fn restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
-	self.r.write()?.restore_default()
-    }
 }
 
 va_expand_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-	     impl<$($va_idents: 'static,)* Ret: 'static> HotpatchImport<($($va_idents,)*), Ret> {
+	     impl<$($va_idents: 'static,)* Ret: 'static> Patchable<($($va_idents,)*), Ret> {
 		 pub fn hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F)
 							     -> Result<(), Box<dyn std::error::Error + '_>>
 		 where F: Fn($($va_idents),*) -> Ret {
-		     self.r.write()?.hotpatch_fn(move |args| ptr.call(args))
+		     self.lazy.r.write()?.hotpatch_fn(move |args| ptr.call(args))
 		 }
 	     }
 }
 
-impl<Args, Ret> FnOnce<Args> for HotpatchImport<Args, Ret> {
+impl<Args, Ret> FnOnce<Args> for Patchable<Args, Ret> {
     type Output = Ret;
     extern "rust-call" fn call_once(self, args: Args) -> Ret {
 	// When variadic generics are imlemented the following line can be used
@@ -109,16 +125,16 @@ impl<Args, Ret> FnOnce<Args> for HotpatchImport<Args, Ret> {
 	// When variadic template arguements are introduced, the stored function pointer
 	// will be type-aware.
 	//std::ops::Fn::call(&self.r.read().unwrap().ptr, args)
-	(self.r.read().unwrap().current_ptr)(args)
+	(self.lazy.r.read().unwrap().current_ptr)(args)
     }
 }
-impl<Args, Ret> FnMut<Args> for HotpatchImport<Args, Ret> {
+impl<Args, Ret> FnMut<Args> for Patchable<Args, Ret> {
     extern "rust-call" fn call_mut(&mut self, args: Args) -> Ret {
-	(self.r.read().unwrap().current_ptr)(args)
+	(self.lazy.r.read().unwrap().current_ptr)(args)
     }
 }
-impl<Args, Ret> Fn<Args> for HotpatchImport<Args, Ret> {
+impl<Args, Ret> Fn<Args> for Patchable<Args, Ret> {
     extern "rust-call" fn call(&self, args: Args) -> Ret {
-	(self.r.read().unwrap().current_ptr)(args)
+	(self.lazy.r.read().unwrap().current_ptr)(args)
     }
 }
