@@ -14,7 +14,6 @@ Key features:
 	affect at the same time, this would cause a deadlock
 
 ## TODO
-- `try` patch functions
 - `unsafe` patch functions
 - Use normal macros to generate crate name in proc_macros
   so that renaming `hotpatch` will still work

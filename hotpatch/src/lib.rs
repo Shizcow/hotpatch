@@ -172,6 +172,11 @@ impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
     pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.lazy.write()?.hotpatch_lib(lib_name)
     }
+    /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
+    /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
+    pub fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+	self.lazy.try_write()?.hotpatch_lib(lib_name)
+    }
     /// Hotpatch this functor back to its original definition.
     ///
     /// ## Example
@@ -190,6 +195,11 @@ impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
     /// ```
     pub fn restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
 	self.lazy.write()?.restore_default()
+    }
+    /// Like [`restore_default`](Patchable::restore_default) but uses
+    /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
+    pub fn try_restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
+	self.lazy.try_write()?.restore_default()
     }
 }
 
@@ -229,6 +239,13 @@ impl<VaGen: 'static, Ret: 'static> Patchable<VaGen, Ret> {
     where F: Fn(VaGen) -> Ret {
 	// The actual implementation is below
     }
+    /// Like [`hotpatch_fn`](Patchable::hotpatch_fn) but uses
+    /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
+    pub fn try_hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
+	Result<(), Box<dyn std::error::Error + '_>>
+    where F: Fn(VaGen) -> Ret {
+	// The actual implementation is below
+    }
 }
 #[cfg(not(doc))]
 #[cfg(not(feature = "large-signatures"))]
@@ -238,6 +255,11 @@ va_expand_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
 	    Result<(), Box<dyn std::error::Error + '_>>
 	where F: Fn($($va_idents),*) -> Ret {
 	    self.lazy.write()?.hotpatch_fn(move |args| ptr.call(args))
+	}
+	pub fn try_hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
+	    Result<(), Box<dyn std::error::Error + '_>>
+	where F: Fn($($va_idents),*) -> Ret {
+	    self.lazy.try_write()?.hotpatch_fn(move |args| ptr.call(args))
 	}
     }
 }
@@ -249,6 +271,11 @@ va_expand_more_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt
 			      Result<(), Box<dyn std::error::Error + '_>>
 			  where F: Fn($($va_idents),*) -> Ret {
 			      self.lazy.write()?.hotpatch_fn(move |args| ptr.call(args))
+			  }
+			  pub fn try_hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
+			      Result<(), Box<dyn std::error::Error + '_>>
+			  where F: Fn($($va_idents),*) -> Ret {
+			      self.lazy.try_write()?.hotpatch_fn(move |args| ptr.call(args))
 			  }
 		      }
 }
