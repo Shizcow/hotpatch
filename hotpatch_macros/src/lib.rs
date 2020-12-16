@@ -1,5 +1,7 @@
 #![feature(proc_macro_diagnostic)]
 
+//! You probably want documentation for the `hotpatch` crate.
+
 use proc_macro::TokenStream;
 use syn::{ItemFn, parse::Nothing};
 use std::sync::RwLock;

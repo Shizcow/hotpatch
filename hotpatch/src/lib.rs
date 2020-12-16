@@ -2,6 +2,58 @@
 #![feature(fn_traits)]
 #![feature(const_fn_fn_ptr_basics)]
 
+//! Changing function definitions at runtime.
+//!
+//! This crate is primarily used to load new function definitions from shared
+//! object files in an exceedingly easy way.
+//!
+//! ## Short Example
+//! The following shows how
+//! dead-simple this crate is to use:
+//! ```
+//! // main.rs
+//! use hotpatch::patchable;
+//!
+//! #[patchable]
+//! fn foo() { }
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!   foo(); // does nothing
+//!   foo.hotpatch_lib("libsomething.so")?;
+//!   foo(); // does something totally different!
+//! }
+//! ```
+//! What about defining a patch? Also easy:
+//! ```
+//! // lib.rs
+//! use hotpatch::patch;
+//! 
+//! #[patch]
+//! fn foo() { }
+//! ```
+//! For more examples see the [git repo](https://github.com/Shizcow/hotpatch).
+//!
+//! ## Features
+//! For reference, this crate recognizes the following features:
+//! - `allow-main`: Allow setting `main` as [`#[patchable]`](patchable). Use with caution.
+//! - `large-signatures`: Tweaks the variadic generics engine. See [`hotpatch_fn`](Patchable::hotpatch_fn).
+//!
+//! ## Warnings
+//! Under normal operation, this crate provides type saftey, thread saftey,
+//! namepace saftey, and a whole bunch of other guarentees. However, use of this
+//! crate is still playing with fire.
+//!
+//! The one thing that cannot be checked against is call stack saftey. Because
+//! [`Patchable`](Patchable) uses [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html)s
+//! the current thread is blocked when trying to hotpatch a function.
+//! This ensures that an out-of-date function body cannot be ran. However if the
+//! function being hotpatched is the current function or anywhere within the
+//! call stack (eg patching a function that called the current function) a
+//! deadlock will occur. Be careful!
+//!
+//! The `try` methods within [`Patchable`](Patchable) provide additional checks
+//! for this, but may cause other problems in multithreaded environments.
+
 use std::sync::RwLock;
 use simple_error::bail;
 
