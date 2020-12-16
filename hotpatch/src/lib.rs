@@ -82,7 +82,7 @@ impl<T> HotpatchExport<T> {
 /// Created by [`#[patchable]`](patchable). A functor capable of overwriting its
 /// own function.
 pub struct Patchable<Args, Ret> {
-    lazy: Lazy<RwLock<HotpatchImportInternal<Args, Ret>>>,
+    lazy: Lazy<Option<RwLock<HotpatchImportInternal<Args, Ret>>>>,
 }
 
 #[doc(hidden)]
@@ -146,12 +146,12 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
 // passthrough methods
 impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
     #[doc(hidden)]
-    pub const fn __new(ptr: fn() -> RwLock<HotpatchImportInternal<Args, Ret>>) -> Self {
+    pub const fn __new(ptr: fn() -> Option<RwLock<HotpatchImportInternal<Args, Ret>>>) -> Self {
 	Self{lazy: Lazy::new(ptr)}
     }
     #[doc(hidden)]
-    pub fn __new_internal(ptr: fn(Args) -> Ret, mpath: &'static str, sig: &'static str) -> RwLock<HotpatchImportInternal<Args, Ret>> {
-	RwLock::new(HotpatchImportInternal::new(ptr, mpath, sig))
+    pub fn __new_internal(ptr: fn(Args) -> Ret, mpath: &'static str, sig: &'static str) -> Option<RwLock<HotpatchImportInternal<Args, Ret>>> {
+	Some(RwLock::new(HotpatchImportInternal::new(ptr, mpath, sig)))
     }
     /// Hotpatch this functor with functionality defined in `lib_name`.
     /// Will search a shared object `cdylib` file for [`#[patch]`](patch) exports,
@@ -170,12 +170,12 @@ impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
     /// }
     /// ```
     pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
-	self.lazy.write()?.hotpatch_lib(lib_name)
+	self.lazy.as_ref().unwrap().write()?.hotpatch_lib(lib_name)
     }
     /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
     /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
     pub fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
-	self.lazy.try_write()?.hotpatch_lib(lib_name)
+	self.lazy.as_ref().unwrap().try_write()?.hotpatch_lib(lib_name)
     }
     /// Hotpatch this functor back to its original definition.
     ///
@@ -194,12 +194,23 @@ impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
     /// }
     /// ```
     pub fn restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
-	self.lazy.write()?.restore_default()
+	self.lazy.as_ref().unwrap().write()?.restore_default()
     }
     /// Like [`restore_default`](Patchable::restore_default) but uses
     /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
     pub fn try_restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
-	self.lazy.try_write()?.restore_default()
+	self.lazy.as_ref().unwrap().try_write()?.restore_default()
+    }
+    pub unsafe fn force_restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
+	let sref = self as *const Self as *mut Self;
+	let mut rref = (*sref).lazy.take().unwrap();
+	let wwref = rref.get_mut();
+	let wref = wwref.unwrap();
+	let ptr = wref.default_ptr;
+	let sig = wref.sig;
+	let mpath = wref.mpath;
+	*(*sref).lazy = Some(RwLock::new(HotpatchImportInternal::new(ptr, mpath, sig)));
+	Ok(())
     }
 }
 
@@ -254,12 +265,12 @@ va_expand_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
 	pub fn hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
 	    Result<(), Box<dyn std::error::Error + '_>>
 	where F: Fn($($va_idents),*) -> Ret {
-	    self.lazy.write()?.hotpatch_fn(move |args| ptr.call(args))
+	    self.lazy.as_ref().unwrap().write()?.hotpatch_fn(move |args| ptr.call(args))
 	}
 	pub fn try_hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
 	    Result<(), Box<dyn std::error::Error + '_>>
 	where F: Fn($($va_idents),*) -> Ret {
-	    self.lazy.try_write()?.hotpatch_fn(move |args| ptr.call(args))
+	    self.lazy.as_ref().unwrap().try_write()?.hotpatch_fn(move |args| ptr.call(args))
 	}
     }
 }
@@ -270,12 +281,12 @@ va_expand_more_with_nil!{ ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt
 			  pub fn hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
 			      Result<(), Box<dyn std::error::Error + '_>>
 			  where F: Fn($($va_idents),*) -> Ret {
-			      self.lazy.write()?.hotpatch_fn(move |args| ptr.call(args))
+			      self.lazy.as_ref().unwrap().write()?.hotpatch_fn(move |args| ptr.call(args))
 			  }
 			  pub fn try_hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
 			      Result<(), Box<dyn std::error::Error + '_>>
 			  where F: Fn($($va_idents),*) -> Ret {
-			      self.lazy.try_write()?.hotpatch_fn(move |args| ptr.call(args))
+			      self.lazy.as_ref().unwrap().try_write()?.hotpatch_fn(move |args| ptr.call(args))
 			  }
 		      }
 }
@@ -290,17 +301,17 @@ impl<Args, Ret> FnOnce<Args> for Patchable<Args, Ret> {
 	// type arguement tuple is used to give a constant number of arguements.
 	// When variadic template arguements are introduced, the stored function pointer
 	// will be type-aware.
-	//self.lazy.read().unwrap().current_ptr.call(args)
-	(self.lazy.read().unwrap().current_ptr)(args)
+	//self.lazy.unwrap().read().unwrap().current_ptr.call(args)
+	(self.lazy.as_ref().unwrap().read().unwrap().current_ptr)(args)
     }
 }
 impl<Args, Ret> FnMut<Args> for Patchable<Args, Ret> {
     extern "rust-call" fn call_mut(&mut self, args: Args) -> Ret {
-	(self.lazy.read().unwrap().current_ptr)(args)
+	(self.lazy.as_ref().unwrap().read().unwrap().current_ptr)(args)
     }
 }
 impl<Args, Ret> Fn<Args> for Patchable<Args, Ret> {
     extern "rust-call" fn call(&self, args: Args) -> Ret {
-	(self.lazy.read().unwrap().current_ptr)(args)
+	(self.lazy.as_ref().unwrap().read().unwrap().current_ptr)(args)
     }
 }
