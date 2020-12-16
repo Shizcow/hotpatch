@@ -15,9 +15,21 @@ pub use hotpatch_macros::*;
 /// Creates a public static `#[no_mangle]` instance to be imported in another
 /// binary by (`Patchable::hotpatch()`)[Patchable::hotpatch].
 pub struct HotpatchExport<T> {
-    pub symbol: &'static str, // field order is important
-    pub sig: &'static str,
-    pub ptr: T,
+    symbol: &'static str, // field order is important
+    sig: &'static str,
+    ptr: T,
+}
+
+impl<T> HotpatchExport<T> {
+    #[doc(hidden)]
+    pub const fn __new(ptr: T, symbol: &'static str, sig: &'static str) -> Self {
+	Self{symbol, sig, ptr}
+    }
+}
+
+/// Created by (`#[patchable]`)[patchable]
+pub struct Patchable<Args, Ret> {
+    lazy: Lazy<RwLock<HotpatchImportInternal<Args, Ret>>>,
 }
 
 #[doc(hidden)]
@@ -78,12 +90,9 @@ impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
     }
 }
 
-pub struct Patchable<Args, Ret> {
-    pub lazy: Lazy<RwLock<HotpatchImportInternal<Args, Ret>>>,
-}
-
 impl<Args: 'static, Ret: 'static> Patchable<Args, Ret> {
-    pub const fn new(ptr: fn() -> RwLock<HotpatchImportInternal<Args, Ret>>) -> Self {
+    #[doc(hidden)]
+    pub const fn __new(ptr: fn() -> RwLock<HotpatchImportInternal<Args, Ret>>) -> Self {
 	Self{lazy: Lazy::new(ptr)}
     }
     #[doc(hidden)]

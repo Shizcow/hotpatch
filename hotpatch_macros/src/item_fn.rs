@@ -33,7 +33,7 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 	#item
 	#[cfg(not(doc))]
 	#[allow(non_upper_case_globals)]
-	pub static #fn_name: hotpatch::Patchable<#fargs, #output_type> = hotpatch::Patchable::new(
+	pub static #fn_name: hotpatch::Patchable<#fargs, #output_type> = hotpatch::Patchable::__new(
 	    || {
 		#[inline(always)]
 		#item
@@ -72,9 +72,9 @@ pub fn patch(fn_item: ItemFn) -> TokenStream {
 	#[doc(hidden)]
 	#[no_mangle]
 	pub static #hotpatch_name: hotpatch::HotpatchExport<fn(#fargs) -> #output_type> =
-	    hotpatch::HotpatchExport{ptr: move |args| #fn_name #targs,
-				     symbol: concat!(module_path!(), "::", stringify!(#fn_name)),
-				     sig: #sigtext};
+	    hotpatch::HotpatchExport::__new(move |args| #fn_name #targs,
+					    concat!(module_path!(), "::", stringify!(#fn_name)),
+					    #sigtext);
     })
 	
 }
