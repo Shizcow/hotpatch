@@ -40,14 +40,14 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
     item.sig.ident = fn_name.clone();
 
     let redirected_main = if cfg!(feature = "redirect-main") && fn_name == "main" {
-	quote!{}
-    } else {
 	quote!{
 	    #[main]
 	    fn __hotpatch_redirect_main() -> #output_type {
 		main()
 	    }
 	}
+    } else {
+	quote!{}
     };
     
     TokenStream::from(quote!{

@@ -1,24 +1,27 @@
-#![feature(main)]
-
 use hotpatch::*;
 
-fn notmain() -> Result<(), Box<dyn std::error::Error>> {
-    println!("I'm not main!");
-    unsafe {
-	main.force_hotpatch_fn(|| {
-	    println!("Neither am I!");
-	    Ok(())
-	})?;
-    }
-    Ok(())
+/// I'm a functor
+#[patchable]
+fn foo(_: i32) {
+    println!("I am Foo");
 }
 
-#[patchable]
+/// I'm a function with extra bits
+#[patch]
+fn tmp(_: i32) {
+
+}
+
+fn bar(_: i32) {
+    println!("Foo Becomes Bar");
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Hello #1");
-    unsafe {
-	main.force_hotpatch_fn(notmain)?;
-    }
-    main()?;
-    main()
+    foo(1);
+    foo.hotpatch_fn(bar)?;
+    foo(1);
+    let a = 5;
+    foo.hotpatch_fn(move |_: i32| println!("Foo becomes anonymous {}", a))?;
+    foo(1);
+    Ok(())
 }

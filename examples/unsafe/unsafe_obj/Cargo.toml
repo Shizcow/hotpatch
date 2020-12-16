@@ -1,0 +1,12 @@
+[package]
+name = "unsafe_obj"
+version = "0.1.0"
+authors = ["Shizcow <pohl.devin@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "unsafe_obj"
+crate-type = ["cdylib"]
+
+[dependencies]
+hotpatch = {path = "../../../hotpatch"}
