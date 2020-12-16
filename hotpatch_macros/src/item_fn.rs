@@ -10,10 +10,11 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
     let (fargs, output_type, mut fn_name, sigtext, mut item, targs)
 	= gather_info(fn_item);
 
-    if !cfg!(feature = "allow-main") && fn_name == "main" {
+    if !cfg!(feature = "allow-main") && !cfg!(feature = "redirect-main") && fn_name == "main" {
 	fn_name.span().unwrap().error("Attempted to set main as patchable")
 	    .note("calling main.hotpatch() would cause a deadlock")
-	    .help("enable the 'allow-main' feature in hotpatch to ignore (I hope you're using #[main] or #[start])")
+	    .help("enable the 'allow-main' feature if you're using #[main] or #[start]")
+	    .help("enable the 'redirect-main' feature if you actually want main to be patchable (requires unsafe and nightly, read the docs on force functions)")
 	    .emit();
 	return TokenStream::new();
     }
@@ -37,6 +38,17 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
     let item_name = fn_name.clone();
     fn_name = Ident::new("__hotpatch_internal_fn_mangle_name", Span::call_site());
     item.sig.ident = fn_name.clone();
+
+    let redirected_main = if cfg!(feature = "redirect-main") && fn_name == "main" {
+	quote!{}
+    } else {
+	quote!{
+	    #[main]
+	    fn __hotpatch_redirect_main() -> #output_type {
+		main()
+	    }
+	}
+    };
     
     TokenStream::from(quote!{
 	#doc_header
@@ -50,6 +62,7 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 						    concat!(module_path!(), "::", stringify!(#fn_name)),
 						    #sigtext)
 	    });
+	#redirected_main
     })
 }
 

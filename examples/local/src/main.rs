@@ -1,22 +1,24 @@
+#![feature(main)]
+
 use hotpatch::*;
 
-/// I'm a functor
-#[patchable]
-fn foo(depth: i32) -> Result<(), Box<dyn std::error::Error>> {
-    println!("I am Foo. Depth: {}", depth);
+fn notmain() -> Result<(), Box<dyn std::error::Error>> {
+    println!("I'm not main!");
     unsafe {
-	foo.force_hotpatch_fn(move |depth: i32| {
-	    println!("This is very unsafe {}", depth);
-	    foo.force_hotpatch_fn(move |depth: i32| {
-		println!("It gets even worse! {}", depth);
-		Ok(())
-	    })?;
-	    foo(depth+1)
+	main.force_hotpatch_fn(|| {
+	    println!("Neither am I!");
+	    Ok(())
 	})?;
     }
-    foo(depth+1)
+    Ok(())
 }
 
+#[patchable]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    foo(1)
+    println!("Hello #1");
+    unsafe {
+	main.force_hotpatch_fn(notmain)?;
+    }
+    main()?;
+    main()
 }

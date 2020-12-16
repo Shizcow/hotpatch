@@ -10,6 +10,7 @@ proc-macro = true
 [features]
 default = []
 allow-main = []
+redirect-main = []
 
 [dependencies]
 proc-macro2 = "1.0.17"
