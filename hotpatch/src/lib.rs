@@ -104,7 +104,7 @@ pub struct HotpatchImportInternal<Args, Ret> {
 }
 
 impl<Args: 'static, Ret: 'static> HotpatchImportInternal<Args, Ret> {
-    pub fn new(ptr: fn(Args) -> Ret, sig: &'static str, mpath: &'static str) -> Self {
+    pub fn new(ptr: fn(Args) -> Ret, mpath: &'static str, sig: &'static str) -> Self {
 	Self{current_ptr: Box::new(ptr), default_ptr: ptr, lib: None, sig, mpath: mpath.trim_start_matches(|c| c!=':')}
     }
     fn clean(&mut self) -> Result<(), Box<dyn std::error::Error>> {

@@ -59,7 +59,7 @@ pub fn patchable(fn_item: ItemFn) -> TokenStream {
 		#[inline(always)]
 		#item
 		hotpatch::Patchable::__new_internal(move |args| #fn_name #targs,
-						    concat!(module_path!(), "::", stringify!(#fn_name)),
+						    concat!(module_path!(), "::", stringify!(#item_name)),
 						    #sigtext)
 	    });
 	#redirected_main
