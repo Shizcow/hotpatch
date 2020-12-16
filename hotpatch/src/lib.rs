@@ -174,7 +174,9 @@ impl<VaGen: 'static, Ret: 'static> Patchable<VaGen, Ret> {
     /// [`restore_default`](Patchable::restore_default).
     pub fn hotpatch_fn<F: Send + Sync + 'static>(&self, ptr: F) ->
 	Result<(), Box<dyn std::error::Error + '_>>
-    where F: Fn(VaGen) -> Ret { }
+    where F: Fn(VaGen) -> Ret {
+	// The actual implementation is below
+    }
 }
 #[cfg(not(doc))]
 #[cfg(not(feature = "large-signatures"))]
@@ -209,7 +211,7 @@ impl<Args, Ret> FnOnce<Args> for Patchable<Args, Ret> {
 	// type arguement tuple is used to give a constant number of arguements.
 	// When variadic template arguements are introduced, the stored function pointer
 	// will be type-aware.
-	//std::ops::Fn::call(&self.r.read().unwrap().ptr, args)
+	//self.lazy.read().unwrap().current_ptr.call(args)
 	(self.lazy.read().unwrap().current_ptr)(args)
     }
 }

@@ -10,6 +10,22 @@ lazy_static::lazy_static! {
     static ref EXPORTNUM: RwLock<usize> = RwLock::new(0);
 }
 
+/// Transforms a function into a [`Patchable`](struct.Patchable.html) capable of having
+/// its behavior redefined at runtime.
+///
+/// Takes a single optional arguement: `modpath`. Used to spoof the module
+/// path.
+///
+/// ## Example
+/// ```
+/// #[patchable]
+/// fn foo() {}
+///
+/// #[patchable(mymod::baz)] // will look for the function ::mymod::baz instead of ::bar
+/// fn bar() {
+///   foo(); // foo is callable, just as a functor
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
     syn::parse_macro_input!(attr as Nothing); // I take no args
@@ -21,6 +37,23 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
     }
 }
 
+/// Transforms a function into a [`HotpatchExport`](struct.HotpatchExport.html) capable of
+/// being exported and changing the behavior of a function in a seperate binary
+/// at runtime. **The original function is preserved.** 
+///
+/// Takes a single optional arguement: `modpath`. Used to spoof the module
+/// path.
+///
+/// ## Example
+/// ```
+/// #[patch]
+/// fn foo() {}
+///
+/// #[patch(mymod::baz)] // looks like: mod mymod { fn baz() {} }
+/// fn bar() {
+///   foo(); // can still call foo
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn patch(attr: TokenStream, input: TokenStream) -> TokenStream {
     syn::parse_macro_input!(attr as Nothing); // I take no args
