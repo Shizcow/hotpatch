@@ -3,6 +3,10 @@ name = "hotpatch"
 version = "0.1.0"
 authors = ["Shizcow <pohl.devin@gmail.com>"]
 edition = "2018"
+readme = "../README.md"
+repository = "https://github.com/Shizcow/hotpatch"
+keywords = ["hotpatch", "patch", "dynamic"]
+categories = ["development-tools"]
 
 [features]
 default = []
@@ -11,8 +15,8 @@ redirect-main = ["hotpatch_macros/redirect-main"]
 large-signatures = []
 
 [dependencies]
-once_cell= "1.5.2"
-libloading = "0.6"
-simple-error = "0.2.2"
+once_cell= "^1.5.0"
+libloading = "^0.6"
+simple-error = "^0.2.0"
 hotpatch_macros = {path = "../hotpatch_macros", version = "0.1.0"}
-variadic_generics = "0.1.1"
+variadic_generics = "^0.1.0"
