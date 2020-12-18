@@ -1,6 +1,7 @@
 # hotpatch
 [![crates.io](https://img.shields.io/crates/v/hotpatch.svg)](https://crates.io/crates/hotpatch)
 [![docs.rs](https://docs.rs/hotpatch/badge.svg)](https://docs.rs/hotpatch)
+
 This crate is primarily used to load new function definitions from shared
 object files in an exceedingly easy way.
 
