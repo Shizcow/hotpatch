@@ -1,6 +1,6 @@
 #![feature(proc_macro_diagnostic)]
 
-//! You probably want documentation for the `hotpatch` crate.
+//! You probably want documentation for the [`hotpatch`](https://docs.rs/hotpatch) crate.
 
 use proc_macro::TokenStream;
 use syn::{ItemFn, parse::Nothing, Path};

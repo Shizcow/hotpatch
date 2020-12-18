@@ -13,7 +13,7 @@ allow-main = []
 redirect-main = []
 
 [dependencies]
-proc-macro2 = "1.0.17"
-syn = {version = "1.0.23", features = ["full", "extra-traits"]}
-lazy_static = "1.4.0"
-quote = "1.0.6"
+proc-macro2 = "^1.0.0"
+syn = {version = "^1.0.0", features = ["full", "extra-traits"]}
+lazy_static = "^1.4.0"
+quote = "^1.0.0"
