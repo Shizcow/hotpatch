@@ -49,7 +49,7 @@
 //! The one thing that cannot be checked against is call stack saftey. Because
 //! [`Patchable`](Patchable) uses [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html)s
 //! the current thread is blocked when trying to hotpatch a function.
-//! This ensures that an out-of-date function body cannot be ran. However if the
+//! This ensures that an out-of-date function body cannot be run. However if the
 //! function being hotpatched is the current function or anywhere within the
 //! call stack (eg patching a function that called the current function) a
 //! deadlock will occur. Be careful!
