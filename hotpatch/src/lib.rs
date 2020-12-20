@@ -42,14 +42,14 @@
 //! - `large-signatures`: Tweaks the variadic generics engine. See [`hotpatch_fn`](Patchable::hotpatch_fn).
 //!
 //! ## Warnings
-//! Under normal operation, this crate provides type saftey, thread saftey,
-//! namepace saftey, and a whole bunch of other guarentees. However, use of this
+//! Under normal operation, this crate provides type safety, thread safety,
+//! namepace safety, and a whole bunch of other guarantees. However, use of this
 //! crate is still playing with fire.
 //!
-//! The one thing that cannot be checked against is call stack saftey. Because
+//! The one thing that cannot be checked against is call stack safety. Because
 //! [`Patchable`](Patchable) uses [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html)s
 //! the current thread is blocked when trying to hotpatch a function.
-//! This ensures that an out-of-date function body cannot be ran. However if the
+//! This ensures that an out-of-date function body cannot be run. However if the
 //! function being hotpatched is the current function or anywhere within the
 //! call stack (eg patching a function that called the current function) a
 //! deadlock will occur. Be careful!
@@ -57,9 +57,9 @@
 //! The `try` methods within [`Patchable`](Patchable) provide additional checks
 //! for this, but may cause other problems in multithreaded environments.
 //!
-//! ## Bypassing Thread Saftey
+//! ## Bypassing Thread Safety
 //! The previous section mentions being unable to hotpatch currently running functions.
-//! This is a deliberate saftey feature. However, it can be bypassed by using the
+//! This is a deliberate safety feature. However, it can be bypassed by using the
 //! `force` methods within [`Patchable`](Patchable). This allows multiple
 //! functions definitions to run at once. This is unsafe, but allows for some really
 //! interesting things such as hotpatching `main`.
