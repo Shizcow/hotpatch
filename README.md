@@ -56,5 +56,6 @@ This crate is still has a long way to go before being "finished". Below are some
 - lower compile times
   - minimize dependencies
   - version correctly
+    - `hotpatch_macros` dependency needs to be exact
   - include only necessary features for sub-dependencies
 - properly document nightly feature requirements
