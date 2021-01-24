@@ -77,8 +77,9 @@ use variadic_generics::*;
 mod export;
 pub use export::*;
 
-pub trait Ree<T: ?Sized> {
-    fn ree(self) -> Box<T>;
+pub trait Ree {
+    type Output: ?Sized;
+    fn ree(self) -> Box<Self::Output>;
 }
 
 // impl<Ret: 'static> Ree for fn() -> Ret {
@@ -88,10 +89,9 @@ pub trait Ree<T: ?Sized> {
 //     }
 // }
 
-impl<T: 'static + ?Sized> Ree<dyn for<'r> Fn<(&'r T,), Output = &'r T> + Send + Sync>
-    for for<'r> fn(&'r T) -> &'r T
-{
-    fn ree(self) -> Box<dyn for<'r> Fn<(&'r T,), Output = &'r T> + Send + Sync> {
+impl<T: 'static + ?Sized> Ree for for<'r> fn(&'r T) -> &'r T {
+    type Output = dyn for<'r> Fn<(&'r T,), Output = &'r T> + Send + Sync;
+    fn ree(self) -> Box<Self::Output> {
         Box::new(self)
     }
 }
@@ -104,12 +104,12 @@ impl<T: 'static + ?Sized> Ree<dyn for<'r> Fn<(&'r T,), Output = &'r T> + Send + 
 
 /// Created by [`#[patchable]`](patchable). A functor capable of overwriting its
 /// own function.
-pub struct Patchable<FnPtr: Ree<TraitPtr> + Copy, TraitPtr: ?Sized> {
+pub struct Patchable<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized> {
     lazy: Lazy<Option<RwLock<HotpatchImportInternal<FnPtr, TraitPtr>>>>,
 }
 
 #[doc(hidden)]
-pub struct HotpatchImportInternal<FnPtr: Ree<TraitPtr> + Copy, TraitPtr: ?Sized> {
+pub struct HotpatchImportInternal<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized> {
     current_ptr: Box<TraitPtr>,
     default_ptr: FnPtr,
     sig: &'static str,
@@ -117,7 +117,9 @@ pub struct HotpatchImportInternal<FnPtr: Ree<TraitPtr> + Copy, TraitPtr: ?Sized>
     mpath: &'static str,
 }
 
-impl<FnPtr: Ree<TraitPtr> + Copy, TraitPtr: ?Sized> HotpatchImportInternal<FnPtr, TraitPtr> {
+impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized>
+    HotpatchImportInternal<FnPtr, TraitPtr>
+{
     fn new(ptr: FnPtr, mpath: &'static str, sig: &'static str) -> Self {
         Self {
             current_ptr: ptr.ree(),
@@ -175,7 +177,7 @@ impl<FnPtr: Ree<TraitPtr> + Copy, TraitPtr: ?Sized> HotpatchImportInternal<FnPtr
 }
 
 // passthrough methods
-impl<FnPtr: Ree<TraitPtr> + Copy, TraitPtr: ?Sized> Patchable<FnPtr, TraitPtr> {
+impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized> Patchable<FnPtr, TraitPtr> {
     #[doc(hidden)]
     pub const fn __new(
         ptr: fn() -> Option<RwLock<HotpatchImportInternal<FnPtr, TraitPtr>>>,
@@ -334,7 +336,7 @@ impl<FnPtr: Ree<TraitPtr> + Copy, TraitPtr: ?Sized> Patchable<FnPtr, TraitPtr> {
 va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
                impl<FnPtr, Ret, TraitPtr: ?Sized $(,$va_idents)*> FnOnce<($($va_idents,)*)> for Patchable<FnPtr, TraitPtr>
     where TraitPtr: Fn($($va_idents),*) -> Ret,
-               FnPtr: Ree<TraitPtr> + Copy {
+               FnPtr: Ree<Output = TraitPtr> + Copy {
            type Output = Ret;
           extern "rust-call" fn call_once(self, args: ($($va_idents,)*)) -> Ret {
                   self.lazy
@@ -350,7 +352,7 @@ va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
 va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
                impl<FnPtr, Ret, TraitPtr: ?Sized $(,$va_idents)*> FnMut<($($va_idents,)*)> for Patchable<FnPtr, TraitPtr>
     where TraitPtr: Fn($($va_idents),*) -> Ret,
-               FnPtr: Ree<TraitPtr> + Copy {
+               FnPtr: Ree<Output = TraitPtr> + Copy {
           extern "rust-call" fn call_mut(&mut self, args: ($($va_idents,)*)) -> Ret {
                   self.lazy
                   .as_ref()
@@ -365,7 +367,7 @@ va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
 va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
                impl<FnPtr, Ret, TraitPtr: ?Sized $(,$va_idents)*> Fn<($($va_idents,)*)> for Patchable<FnPtr, TraitPtr>
     where TraitPtr: Fn($($va_idents),*) -> Ret,
-               FnPtr: Ree<TraitPtr> + Copy {
+               FnPtr: Ree<Output = TraitPtr> + Copy {
           extern "rust-call" fn call(&self, args: ($($va_idents,)*)) -> Ret {
                   self.lazy
                   .as_ref()
