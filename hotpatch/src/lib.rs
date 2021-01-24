@@ -333,7 +333,9 @@ impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized> Patchable<FnPtr, Tr
     }
 }
 
-impl Patchable<fn(&str) -> &str, dyn Fn(&str) -> &str + Send + Sync + 'static> {
+impl<FnPtr: Ree<Output = dyn Fn(&str) -> &str + Send + Sync + 'static> + Copy>
+    Patchable<FnPtr, dyn Fn(&str) -> &str + Send + Sync + 'static>
+{
     pub fn ext_hotpatch_fn<T>(&self, ptr: T) -> Result<(), Box<dyn std::error::Error + '_>>
     where
         T: Fn(&str) -> &str + Send + Sync + 'static,
