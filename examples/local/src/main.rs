@@ -51,6 +51,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     foo("3");
 
     foo2(2);
-    foo2.hotpatch_fn(|_| 0);
+    //foo2.hotpatch_fn(|_| 0);
     Ok(())
 }

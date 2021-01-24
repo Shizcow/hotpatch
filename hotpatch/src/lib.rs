@@ -250,14 +250,11 @@ impl<TraitPtr> Patchable<TraitPtr> {
     }
 }
 
-impl<UnboxedTraitPtr: ?Sized, Ret: ?Sized> Patchable<Box<UnboxedTraitPtr>>
-where
-    UnboxedTraitPtr: Fn(&str) -> &Ret + Send + Sync + 'static,
-{
-    pub fn hotpatch_fn<F>(&self, ptr: F) -> Result<(), Box<dyn std::error::Error + '_>>
+impl<UnboxedTraitPtr: ?Sized> Patchable<Box<UnboxedTraitPtr>> {
+    pub fn hotpatch_fn<F, Ret: ?Sized>(&self, ptr: F) -> Result<(), Box<dyn std::error::Error + '_>>
     where
         F: Fn(&str) -> &Ret + Send + Sync + 'static,
-    Box<UnboxedTraitPtr>: From<Box<dyn Fn(&str) -> &Ret + Send + Sync + 'static>>,
+        Box<UnboxedTraitPtr>: From<Box<dyn Fn(&str) -> &Ret + Send + Sync + 'static>>,
     {
         let pre_boxed: Box<dyn Fn(&str) -> &Ret + Send + Sync + 'static> = Box::new(ptr);
         self.lazy
