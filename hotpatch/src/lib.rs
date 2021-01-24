@@ -333,6 +333,16 @@ impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized> Patchable<FnPtr, Tr
     }
 }
 
+impl Patchable<fn(&str) -> &str, dyn Fn(&str) -> &str + Send + Sync + 'static> {
+    pub fn ext_hotpatch_fn<T>(&self, ptr: T) -> Result<(), Box<dyn std::error::Error + '_>>
+    where
+        T: Fn(&str) -> &str + Send + Sync + 'static,
+    {
+        let boxt = Box::new(ptr);
+        self.lazy.as_ref().unwrap().write()?.hotpatch_fn(boxt)
+    }
+}
+
 va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
                impl<FnPtr, Ret, TraitPtr: ?Sized $(,$va_idents)*> FnOnce<($($va_idents,)*)> for Patchable<FnPtr, TraitPtr>
     where TraitPtr: Fn($($va_idents),*) -> Ret,

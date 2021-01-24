@@ -30,13 +30,13 @@ fn bar(_: &str) -> &str {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     foo("1");
-    foo.hotpatch_fn(Box::new(bar))?;
+    foo.ext_hotpatch_fn(bar)?;
     foo("2");
     let a = 5;
-    foo.hotpatch_fn(Box::new(move |_: &str| {
+    foo.ext_hotpatch_fn(move |_: &str| {
         println!("Foo becomes anonymous {}", a);
         ""
-    }))?;
+    })?;
     foo("3");
     Ok(())
 }
