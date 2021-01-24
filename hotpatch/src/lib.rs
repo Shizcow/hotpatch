@@ -82,25 +82,27 @@ pub trait Ree {
     fn ree(self) -> Box<Self::Output>;
 }
 
-// impl<Ret: 'static> Ree for fn() -> Ret {
-//     type Output = Box<dyn Fn<(), Output = Ret> + Send + Sync>;
-//     fn ree(self) -> Self::Output {
-//         Box::new(self)
-//     }
-// }
-
-impl<T: 'static + ?Sized> Ree for for<'r> fn(&'r T) -> &'r T {
-    type Output = dyn for<'r> Fn<(&'r T,), Output = &'r T> + Send + Sync;
+impl<Ret: ?Sized + 'static, Arg0: ?Sized + 'static> Ree for fn(&Arg0) -> &Ret {
+    type Output = dyn Fn(&Arg0) -> &Ret + Send + Sync;
     fn ree(self) -> Box<Self::Output> {
         Box::new(self)
     }
 }
 
-// impl Ree<dyn for<'r> Fn(&'r str) -> &str + Send + Sync + 'static> for for<'r> fn(&'r str) -> &str {
-//     fn ree(self) -> Box<dyn for<'r> Fn(&'r str) -> &str + Send + Sync + 'static> {
-//         Box::new(self)
-//     }
-// }
+impl<
+        Ret: ?Sized,
+        Arg0: ?Sized,
+        FnPtr: Ree<Output = dyn Fn(&Arg0) -> &Ret + Send + Sync + 'static> + Copy,
+    > Patchable<FnPtr, dyn Fn(&Arg0) -> &Ret + Send + Sync + 'static>
+{
+    pub fn ext_hotpatch_fn<F>(&self, ptr: F) -> Result<(), Box<dyn std::error::Error + '_>>
+    where
+        F: Fn(&Arg0) -> &Ret + Sized + Send + Sync + 'static,
+    {
+        let boxt = Box::new(ptr);
+        self.lazy.as_ref().unwrap().write()?.hotpatch_fn(boxt)
+    }
+}
 
 /// Created by [`#[patchable]`](patchable). A functor capable of overwriting its
 /// own function.
@@ -330,18 +332,6 @@ impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized> Patchable<FnPtr, Tr
         let reslt = rref.get_mut().unwrap().hotpatch_fn(ptr);
         *(*sref).lazy = Some(rref);
         reslt
-    }
-}
-
-impl<FnPtr: Ree<Output = dyn Fn(&str) -> &str + Send + Sync + 'static> + Copy>
-    Patchable<FnPtr, dyn Fn(&str) -> &str + Send + Sync + 'static>
-{
-    pub fn ext_hotpatch_fn<T>(&self, ptr: T) -> Result<(), Box<dyn std::error::Error + '_>>
-    where
-        T: Fn(&str) -> &str + Send + Sync + 'static,
-    {
-        let boxt = Box::new(ptr);
-        self.lazy.as_ref().unwrap().write()?.hotpatch_fn(boxt)
     }
 }
 
