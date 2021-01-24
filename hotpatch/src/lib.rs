@@ -248,58 +248,23 @@ impl<TraitPtr> Patchable<TraitPtr> {
         *(*sref).lazy = Some(rref);
         reslt
     }
+}
 
-    /// Hotpatch this functor with functionality defined in `ptr`.
-    /// `ptr` can be a function pointer or `move` closure with the
-    /// same type signature as the functor's function.
-    ///
-    /// ## Example
-    /// ```
-    /// #[patchable]
-    /// fn foo(_: i32, _: i32, _: i32) {}
-    ///
-    /// fn bar(_: i32, _: i32, _: i32) {}
-    ///
-    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///   foo.hotpatch_fn(bar)?;
-    ///   foo.hotpatch_fn(move |a, b, c| println!("{} {} {}", a, b, c))?;
-    ///   Ok(())
-    /// }
-    /// ```
-    ///
-    /// ## VaArgs Note
-    /// Implementation is defined with the [`variadic_generics`](https://docs.rs/variadic_generics)
-    /// crate. This means
-    /// a macro is used to define a finite but large number of templated inputs.
-    /// If using functions with large numbers of inputs and `hotpatch_fn` does not
-    /// appear to be defined, compile `hotpatch` with the `large-signatures` feature
-    /// to increase the number of supported arguements.
-    ///
-    /// This is the only place where `large_signatures` is needed. Large signature
-    /// functions are supported out of the box for [`hotpatch_lib`](Patchable::hotpatch_lib) and
-    /// [`restore_default`](Patchable::restore_default).
-    pub fn hotpatch_fn(&self, ptr: TraitPtr) -> Result<(), Box<dyn std::error::Error + '_>> {
-        self.lazy.as_ref().unwrap().write()?.hotpatch_fn(ptr)
-    }
-    /// Like [`hotpatch_fn`](Patchable::hotpatch_fn) but uses
-    /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
-    pub fn try_hotpatch_fn(&self, ptr: TraitPtr) -> Result<(), Box<dyn std::error::Error + '_>> {
-        self.lazy.as_ref().unwrap().try_write()?.hotpatch_fn(ptr)
-    }
-    /// Like [`hotpatch_fn`](Patchable::hotpatch_fn) but uses
-    /// unsafe features to completly bypass the
-    /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
-    /// Can be used to patch the current function or parent functions.
-    /// **Use with caution**.
-    pub unsafe fn force_hotpatch_fn(
-        &self,
-        ptr: TraitPtr,
-    ) -> Result<(), Box<dyn std::error::Error + '_>> {
-        let sref = self as *const Self as *mut Self;
-        let mut rref = (*sref).lazy.take().unwrap();
-        let reslt = rref.get_mut().unwrap().hotpatch_fn(ptr);
-        *(*sref).lazy = Some(rref);
-        reslt
+impl<UnboxedTraitPtr: ?Sized> Patchable<Box<UnboxedTraitPtr>>
+where
+    UnboxedTraitPtr: Fn(&str) -> &str + Send + Sync + 'static,
+{
+    pub fn hotpatch_fn<F>(&self, ptr: F) -> Result<(), Box<dyn std::error::Error + '_>>
+    where
+        F: Fn(&str) -> &str + Send + Sync + 'static,
+    Box<UnboxedTraitPtr>: From<Box<Fn(&str) -> &str + Send + Sync + 'static>>,
+    {
+        let pre_boxed: Box<dyn Fn(&str) -> &str + Send + Sync + 'static> = Box::new(ptr);
+        self.lazy
+            .as_ref()
+            .unwrap()
+            .write()?
+            .hotpatch_fn(pre_boxed.into())
     }
 }
 
@@ -341,7 +306,7 @@ va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
                }
 }
 va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-		       impl<TraitPtr, Ret $(,$va_idents)*> Fn<($($va_idents,)*)> for Patchable<TraitPtr>
+               impl<TraitPtr, Ret $(,$va_idents)*> Fn<($($va_idents,)*)> for Patchable<TraitPtr>
     where TraitPtr: Fn($($va_idents),*) -> Ret, {
                extern "rust-call" fn call(&self, args: ($($va_idents,)*)) -> Ret {
                    let inner =
