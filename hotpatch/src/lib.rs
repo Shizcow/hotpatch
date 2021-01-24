@@ -2,6 +2,7 @@
 #![feature(fn_traits)]
 #![feature(const_fn)]
 #![feature(const_fn_fn_ptr_basics)]
+#![feature(type_alias_impl_trait)]
 
 //! Changing function definitions at runtime.
 //!
@@ -76,15 +77,27 @@ use variadic_generics::*;
 mod export;
 pub use export::*;
 
+pub trait Ree {
+    type Output;
+    fn ree(self) -> Self::Output;
+}
+
+impl Ree for fn(i32) -> () {
+    type Output = Box<dyn Fn<(i32,), Output = ()> + Send + Sync + 'static>;
+    fn ree(self) -> Self::Output {
+        Box::new(self)
+    }
+}
+
 /// Created by [`#[patchable]`](patchable). A functor capable of overwriting its
 /// own function.
-pub struct Patchable<FnPtr, TraitPtr> {
+pub struct Patchable<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr> {
     lazy: Lazy<Option<RwLock<HotpatchImportInternal<FnPtr, TraitPtr>>>>,
 }
 
 #[doc(hidden)]
-pub struct HotpatchImportInternal<FnPtr, TraitPtr> {
-    current_ptr: Box<TraitPtr>,
+pub struct HotpatchImportInternal<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr> {
+    current_ptr: TraitPtr,
     default_ptr: FnPtr,
     sig: &'static str,
     lib: Option<libloading::Library>,
@@ -99,12 +112,12 @@ trait HotpatchInternalMethods<FnPtr, TraitPtr> {
     fn hotpatch_lib(&mut self, lib_name: &str) -> Result<(), Box<dyn std::error::Error>>;
 }
 
-impl<FnPtr, TraitPtr> HotpatchInternalMethods<FnPtr, TraitPtr>
+impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr> HotpatchInternalMethods<FnPtr, TraitPtr>
     for HotpatchImportInternal<FnPtr, TraitPtr>
 {
     fn new(ptr: FnPtr, mpath: &'static str, sig: &'static str) -> Self {
         Self {
-            current_ptr: Box::new(ptr),
+            current_ptr: ptr.ree(),
             default_ptr: ptr,
             lib: None,
             sig,
@@ -118,11 +131,11 @@ impl<FnPtr, TraitPtr> HotpatchInternalMethods<FnPtr, TraitPtr>
         Ok(())
     }
     fn restore_default(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.current_ptr = Box::new(self.default_ptr);
+        self.current_ptr = self.default_ptr.ree();
         self.clean()
     }
     fn hotpatch_fn(&mut self, ptr: TraitPtr) -> Result<(), Box<dyn std::error::Error>> {
-        self.current_ptr = Box::new(ptr);
+        self.current_ptr = ptr;
         self.clean()
     }
     fn hotpatch_lib(&mut self, lib_name: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -146,7 +159,7 @@ impl<FnPtr, TraitPtr> HotpatchInternalMethods<FnPtr, TraitPtr>
                     if self.sig != export_obj.sig {
                         bail!("Hotpatch for {} failed: symbol found but of wrong type. Expected {} but found {}", self.mpath, self.sig, export_obj.sig);
                     }
-                    self.current_ptr = Box::new(export_obj.ptr);
+                    self.current_ptr = export_obj.ptr.ree();
                     self.clean()?;
                     self.lib = Some(lib);
                     break;
@@ -159,7 +172,7 @@ impl<FnPtr, TraitPtr> HotpatchInternalMethods<FnPtr, TraitPtr>
 }
 
 // passthrough methods
-impl<FnPtr, TraitPtr> Patchable<FnPtr, TraitPtr> {
+impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr> Patchable<FnPtr, TraitPtr> {
     #[doc(hidden)]
     pub const fn __new(
         ptr: fn() -> Option<RwLock<HotpatchImportInternal<FnPtr, TraitPtr>>>,
@@ -312,52 +325,49 @@ impl<FnPtr, TraitPtr> Patchable<FnPtr, TraitPtr> {
     }
 }
 
-// va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-//                impl<Ret, Ptr $(, $va_idents)*> FnOnce<($($va_idents,)*)> for Patchable<Ptr>
-//     where
-//               Ptr: Fn($($va_idents),*) -> Ret,
-//               {
-//            type Output = Ret;
-//           extern "rust-call" fn call_once(self, args: ($($va_idents,)*)) -> Ret {
-//                   self.lazy
-//                   .as_ref()
-//                   .unwrap()
-//                   .read()
-//                   .unwrap()
-//                   .current_ptr
-//                   .call(args)
-//               }
-//               }
-// }
-// va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-//                impl<Ret, Ptr $(, $va_idents)*> FnMut<($($va_idents,)*)> for Patchable<Ptr>
-//     where
-//               Ptr: Fn($($va_idents),*) -> Ret,
-//                {
-//           extern "rust-call" fn call_mut(&mut self, args: ($($va_idents,)*)) -> Ret {
-//                   self.lazy
-//                   .as_ref()
-//                   .unwrap()
-//                   .read()
-//                   .unwrap()
-//                   .current_ptr
-//                   .call(args)
-//               }
-//               }
-// }
-// va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-//                impl<Ret, Ptr $(, $va_idents)*> Fn<($($va_idents,)*)> for Patchable<Ptr>
-//     where
-//               Ptr: Fn($($va_idents),*) -> Ret,
-//               {
-//           extern "rust-call" fn call(&self, args: ($($va_idents,)*)) -> Ret {
-//                   self.lazy
-//                   .as_ref()
-//                   .unwrap()
-//                   .read()
-//                   .unwrap()
-//                   .current_ptr
-//                   .call(args)
-//               }
-//               }
-// }
+va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+               impl<FnPtr, Ret, TraitPtr $(,$va_idents)*> FnOnce<($($va_idents,)*)> for Patchable<FnPtr, TraitPtr>
+    where TraitPtr: Fn($($va_idents),*) -> Ret,
+		       FnPtr: Ree<Output = TraitPtr> + Copy {
+           type Output = Ret;
+          extern "rust-call" fn call_once(self, args: ($($va_idents,)*)) -> Ret {
+                  self.lazy
+                  .as_ref()
+                  .unwrap()
+                  .read()
+                  .unwrap()
+                  .current_ptr
+                  .call(args)
+              }
+              }
+}
+va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+               impl<FnPtr, Ret, TraitPtr $(,$va_idents)*> FnMut<($($va_idents,)*)> for Patchable<FnPtr, TraitPtr>
+    where TraitPtr: Fn($($va_idents),*) -> Ret,
+               FnPtr: Ree<Output = TraitPtr> + Copy {
+          extern "rust-call" fn call_mut(&mut self, args: ($($va_idents,)*)) -> Ret {
+                  self.lazy
+                  .as_ref()
+                  .unwrap()
+                  .read()
+                  .unwrap()
+                  .current_ptr
+                  .call(args)
+              }
+              }
+}
+va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+               impl<FnPtr, Ret, TraitPtr $(,$va_idents)*> Fn<($($va_idents,)*)> for Patchable<FnPtr, TraitPtr>
+    where TraitPtr: Fn($($va_idents),*) -> Ret,
+               FnPtr: Ree<Output = TraitPtr> + Copy {
+          extern "rust-call" fn call(&self, args: ($($va_idents,)*)) -> Ret {
+                  self.lazy
+                  .as_ref()
+                  .unwrap()
+                  .read()
+                  .unwrap()
+                  .current_ptr
+                  .call(args)
+              }
+              }
+}
