@@ -3,6 +3,8 @@
 #![feature(const_fn)]
 #![feature(const_fn_fn_ptr_basics)]
 #![feature(unsized_fn_params)]
+#![feature(unsize)]
+#![feature(coerce_unsized)]
 
 //! Changing function definitions at runtime.
 //!
@@ -77,54 +79,25 @@ use variadic_generics::*;
 mod export;
 pub use export::*;
 
-pub trait Ree {
-    type Output: ?Sized;
-    fn ree(self) -> Box<Self::Output>;
-}
-
-impl<Ret: ?Sized + 'static, Arg0: ?Sized + 'static> Ree for fn(&Arg0) -> &Ret {
-    type Output = dyn Fn(&Arg0) -> &Ret + Send + Sync;
-    fn ree(self) -> Box<Self::Output> {
-        Box::new(self)
-    }
-}
-
-impl<
-        Ret: ?Sized,
-        Arg0: ?Sized,
-        FnPtr: Ree<Output = dyn Fn(&Arg0) -> &Ret + Send + Sync + 'static> + Copy,
-    > Patchable<FnPtr, dyn Fn(&Arg0) -> &Ret + Send + Sync + 'static>
-{
-    pub fn ext_hotpatch_fn<F>(&self, ptr: F) -> Result<(), Box<dyn std::error::Error + '_>>
-    where
-        F: Fn(&Arg0) -> &Ret + Sized + Send + Sync + 'static,
-    {
-        let boxt = Box::new(ptr);
-        self.lazy.as_ref().unwrap().write()?.hotpatch_fn(boxt)
-    }
-}
-
 /// Created by [`#[patchable]`](patchable). A functor capable of overwriting its
 /// own function.
-pub struct Patchable<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized> {
-    lazy: Lazy<Option<RwLock<HotpatchImportInternal<FnPtr, TraitPtr>>>>,
+pub struct Patchable<TraitPtr> {
+    lazy: Lazy<Option<RwLock<HotpatchImportInternal<TraitPtr>>>>,
 }
 
 #[doc(hidden)]
-pub struct HotpatchImportInternal<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized> {
-    current_ptr: Box<TraitPtr>,
-    default_ptr: FnPtr,
+pub struct HotpatchImportInternal<TraitPtr> {
+    current_ptr: Option<TraitPtr>,
+    default_ptr: TraitPtr,
     sig: &'static str,
     lib: Option<libloading::Library>,
     mpath: &'static str,
 }
 
-impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized>
-    HotpatchImportInternal<FnPtr, TraitPtr>
-{
-    fn new(ptr: FnPtr, mpath: &'static str, sig: &'static str) -> Self {
+impl<TraitPtr> HotpatchImportInternal<TraitPtr> {
+    fn new(ptr: TraitPtr, mpath: &'static str, sig: &'static str) -> Self {
         Self {
-            current_ptr: ptr.ree(),
+            current_ptr: None,
             default_ptr: ptr,
             lib: None,
             sig,
@@ -138,11 +111,11 @@ impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized>
         Ok(())
     }
     fn restore_default(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.current_ptr = self.default_ptr.ree();
+        self.current_ptr = None;
         self.clean()
     }
-    fn hotpatch_fn(&mut self, ptr: Box<TraitPtr>) -> Result<(), Box<dyn std::error::Error>> {
-        self.current_ptr = ptr;
+    fn hotpatch_fn(&mut self, ptr: TraitPtr) -> Result<(), Box<dyn std::error::Error>> {
+        self.current_ptr = Some(ptr);
         self.clean()
     }
     fn hotpatch_lib(&mut self, lib_name: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -153,20 +126,20 @@ impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized>
 
             loop {
                 let symbol_name = format!("{}{}", "__HOTPATCH_EXPORT_", i);
-                let exports: libloading::Symbol<*mut HotpatchExport<FnPtr>> =
+                let exports: libloading::Symbol<*mut HotpatchExport<TraitPtr>> =
                     lib.get(symbol_name.as_bytes()).map_err(|_| {
                         format!(
                             "Hotpatch for {} failed: symbol not found in library {}",
                             self.mpath, lib_name
                         )
                     })?;
-                let export_obj = &**exports;
+                let export_obj = Box::from_raw(*exports);
                 if export_obj.symbol.trim_start_matches(|c| c != ':') == self.mpath {
                     // found the correct symbol
                     if self.sig != export_obj.sig {
                         bail!("Hotpatch for {} failed: symbol found but of wrong type. Expected {} but found {}", self.mpath, self.sig, export_obj.sig);
                     }
-                    self.current_ptr = export_obj.ptr.ree();
+                    self.current_ptr = Some(export_obj.ptr);
                     self.clean()?;
                     self.lib = Some(lib);
                     break;
@@ -179,21 +152,19 @@ impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized>
 }
 
 // passthrough methods
-impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized> Patchable<FnPtr, TraitPtr> {
+impl<TraitPtr> Patchable<TraitPtr> {
     #[doc(hidden)]
-    pub const fn __new(
-        ptr: fn() -> Option<RwLock<HotpatchImportInternal<FnPtr, TraitPtr>>>,
-    ) -> Self {
+    pub const fn __new(ptr: fn() -> Option<RwLock<HotpatchImportInternal<TraitPtr>>>) -> Self {
         Self {
             lazy: Lazy::new(ptr),
         }
     }
     #[doc(hidden)]
     pub fn __new_internal(
-        ptr: FnPtr,
+        ptr: TraitPtr,
         mpath: &'static str,
         sig: &'static str,
-    ) -> Option<RwLock<HotpatchImportInternal<FnPtr, TraitPtr>>> {
+    ) -> Option<RwLock<HotpatchImportInternal<TraitPtr>>> {
         Some(RwLock::new(HotpatchImportInternal::new(ptr, mpath, sig)))
     }
 
@@ -307,15 +278,12 @@ impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized> Patchable<FnPtr, Tr
     /// This is the only place where `large_signatures` is needed. Large signature
     /// functions are supported out of the box for [`hotpatch_lib`](Patchable::hotpatch_lib) and
     /// [`restore_default`](Patchable::restore_default).
-    pub fn hotpatch_fn(&self, ptr: Box<TraitPtr>) -> Result<(), Box<dyn std::error::Error + '_>> {
+    pub fn hotpatch_fn(&self, ptr: TraitPtr) -> Result<(), Box<dyn std::error::Error + '_>> {
         self.lazy.as_ref().unwrap().write()?.hotpatch_fn(ptr)
     }
     /// Like [`hotpatch_fn`](Patchable::hotpatch_fn) but uses
     /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
-    pub fn try_hotpatch_fn(
-        &self,
-        ptr: Box<TraitPtr>,
-    ) -> Result<(), Box<dyn std::error::Error + '_>> {
+    pub fn try_hotpatch_fn(&self, ptr: TraitPtr) -> Result<(), Box<dyn std::error::Error + '_>> {
         self.lazy.as_ref().unwrap().try_write()?.hotpatch_fn(ptr)
     }
     /// Like [`hotpatch_fn`](Patchable::hotpatch_fn) but uses
@@ -325,7 +293,7 @@ impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized> Patchable<FnPtr, Tr
     /// **Use with caution**.
     pub unsafe fn force_hotpatch_fn(
         &self,
-        ptr: Box<TraitPtr>,
+        ptr: TraitPtr,
     ) -> Result<(), Box<dyn std::error::Error + '_>> {
         let sref = self as *const Self as *mut Self;
         let mut rref = (*sref).lazy.take().unwrap();
@@ -336,48 +304,57 @@ impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr: ?Sized> Patchable<FnPtr, Tr
 }
 
 va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-               impl<FnPtr, Ret, TraitPtr: ?Sized $(,$va_idents)*> FnOnce<($($va_idents,)*)> for Patchable<FnPtr, TraitPtr>
-    where TraitPtr: Fn($($va_idents),*) -> Ret,
-               FnPtr: Ree<Output = TraitPtr> + Copy {
-           type Output = Ret;
-          extern "rust-call" fn call_once(self, args: ($($va_idents,)*)) -> Ret {
-                  self.lazy
-                  .as_ref()
-                  .unwrap()
-                  .read()
-                  .unwrap()
-                  .current_ptr
-                  .call(args)
-              }
-              }
+               impl<TraitPtr, Ret $(,$va_idents)*> FnOnce<($($va_idents,)*)> for Patchable<TraitPtr>
+    where TraitPtr: Fn($($va_idents),*) -> Ret, {
+               type Output = Ret;
+               extern "rust-call" fn call_once(self, args: ($($va_idents,)*)) -> Ret {
+                   let inner =
+                       self.lazy
+                       .as_ref()
+                       .unwrap()
+                       .read()
+                       .unwrap();
+           if inner.current_ptr.is_some() {
+               inner.current_ptr.as_ref().unwrap().call(args)
+           } else {
+               inner.default_ptr.call(args)
+           }
+               }
+               }
 }
 va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-               impl<FnPtr, Ret, TraitPtr: ?Sized $(,$va_idents)*> FnMut<($($va_idents,)*)> for Patchable<FnPtr, TraitPtr>
-    where TraitPtr: Fn($($va_idents),*) -> Ret,
-               FnPtr: Ree<Output = TraitPtr> + Copy {
-          extern "rust-call" fn call_mut(&mut self, args: ($($va_idents,)*)) -> Ret {
-                  self.lazy
-                  .as_ref()
-                  .unwrap()
-                  .read()
-                  .unwrap()
-                  .current_ptr
-                  .call(args)
-              }
-              }
+               impl<TraitPtr, Ret $(,$va_idents)*> FnMut<($($va_idents,)*)> for Patchable<TraitPtr>
+    where TraitPtr: Fn($($va_idents),*) -> Ret, {
+               extern "rust-call" fn call_mut(&mut self, args: ($($va_idents,)*)) -> Ret {
+                   let inner =
+                       self.lazy
+                       .as_ref()
+                       .unwrap()
+                       .read()
+                       .unwrap();
+           if inner.current_ptr.is_some() {
+               inner.current_ptr.as_ref().unwrap().call(args)
+           } else {
+               inner.default_ptr.call(args)
+           }
+               }
+               }
 }
 va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-               impl<FnPtr, Ret, TraitPtr: ?Sized $(,$va_idents)*> Fn<($($va_idents,)*)> for Patchable<FnPtr, TraitPtr>
-    where TraitPtr: Fn($($va_idents),*) -> Ret,
-               FnPtr: Ree<Output = TraitPtr> + Copy {
-          extern "rust-call" fn call(&self, args: ($($va_idents,)*)) -> Ret {
-                  self.lazy
-                  .as_ref()
-                  .unwrap()
-                  .read()
-                  .unwrap()
-                  .current_ptr
-                  .call(args)
-              }
-              }
+		       impl<TraitPtr, Ret $(,$va_idents)*> Fn<($($va_idents,)*)> for Patchable<TraitPtr>
+    where TraitPtr: Fn($($va_idents),*) -> Ret, {
+               extern "rust-call" fn call(&self, args: ($($va_idents,)*)) -> Ret {
+                   let inner =
+                       self.lazy
+                       .as_ref()
+                       .unwrap()
+                       .read()
+                       .unwrap();
+           if inner.current_ptr.is_some() {
+               inner.current_ptr.as_ref().unwrap().call(args)
+           } else {
+               inner.default_ptr.call(args)
+           }
+               }
+               }
 }
