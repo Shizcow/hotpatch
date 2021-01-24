@@ -1,7 +1,7 @@
 use hotpatch::*;
 
 #[allow(non_upper_case_globals)]
-static foo: Patchable<fn(&str) -> &str, Box<dyn Fn(&str) -> &str + Send + Sync + 'static>> =
+static foo: Patchable<fn(&str) -> &str, dyn Fn(&str) -> &str + Send + Sync + 'static> =
     Patchable::__new(|| {
         // direct copy
         fn foo(a: &str) -> &str {
