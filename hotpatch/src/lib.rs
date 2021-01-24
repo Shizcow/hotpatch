@@ -250,19 +250,28 @@ impl<TraitPtr> Patchable<TraitPtr> {
     }
 }
 
-impl<UnboxedTraitPtr: ?Sized> Patchable<Box<UnboxedTraitPtr>> {
-    pub fn hotpatch_fn<F, Ret: ?Sized>(&self, ptr: F) -> Result<(), Box<dyn std::error::Error + '_>>
+impl<Ret: ?Sized> Patchable<Box<dyn Fn(&str) -> &Ret + Send + Sync>> {
+    pub fn hotpatch_fn<F>(&self, ptr: F) -> Result<(), Box<dyn std::error::Error + '_>>
     where
         F: Fn(&str) -> &Ret + Send + Sync + 'static,
-        Box<UnboxedTraitPtr>: From<Box<dyn Fn(&str) -> &Ret + Send + Sync + 'static>>,
     {
-        let pre_boxed: Box<dyn Fn(&str) -> &Ret + Send + Sync + 'static> = Box::new(ptr);
-        self.lazy
-            .as_ref()
-            .unwrap()
-            .write()?
-            .hotpatch_fn(pre_boxed.into())
+        let pre_boxed: Box<F> = Box::new(ptr);
+        self.lazy.as_ref().unwrap().write()?.hotpatch_fn(pre_boxed)
     }
+}
+
+#[allow(non_upper_case_globals)]
+static foo: Patchable<Box<dyn Fn(&str) -> &str + Send + Sync>> = Patchable::__new(|| {
+    // direct copy
+    fn foo(a: &str) -> &str {
+        println!("I am Foo {}", a);
+        a
+    }
+    Patchable::__new_internal(Box::new(foo), "local::foo", "fn(i32) -> ()")
+});
+
+pub fn ree() -> Result<(), Box<dyn std::error::Error + 'static>> {
+    foo.hotpatch_fn(|_| "")
 }
 
 va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
