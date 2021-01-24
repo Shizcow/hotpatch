@@ -1,20 +1,14 @@
-#![feature(type_alias_impl_trait)]
-#![feature(impl_trait_in_bindings)]
-#![feature(unboxed_closures)]
-
 use hotpatch::*;
 
 #[allow(non_upper_case_globals)]
-static foo: hotpatch::Patchable<
-    fn(i32) -> (),
-    Box<dyn Fn<(i32,), Output = ()> + Send + Sync + 'static>,
-> = hotpatch::Patchable::__new(|| {
-    // direct copy
-    fn foo(_: i32) {
-        println!("I am Foo");
-    }
-    hotpatch::Patchable::__new_internal(foo, "local::foo", "fn(i32) -> ()")
-});
+static foo: Patchable<fn(i32) -> (), Box<dyn Fn(i32) -> () + Send + Sync + 'static>> =
+    Patchable::__new(|| {
+        // direct copy
+        fn foo(_: i32) {
+            println!("I am Foo");
+        }
+        Patchable::__new_internal(foo, "local::foo", "fn(i32) -> ()")
+    });
 
 // /// I'm a functor
 // #[patchable]

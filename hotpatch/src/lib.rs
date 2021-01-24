@@ -82,8 +82,8 @@ pub trait Ree {
     fn ree(self) -> Self::Output;
 }
 
-impl Ree for fn(i32) -> () {
-    type Output = Box<dyn Fn<(i32,), Output = ()> + Send + Sync + 'static>;
+impl<T: 'static> Ree for fn(T) -> () {
+    type Output = Box<dyn Fn<(T,), Output = ()> + Send + Sync>;
     fn ree(self) -> Self::Output {
         Box::new(self)
     }
@@ -328,7 +328,7 @@ impl<FnPtr: Ree<Output = TraitPtr> + Copy, TraitPtr> Patchable<FnPtr, TraitPtr> 
 va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
                impl<FnPtr, Ret, TraitPtr $(,$va_idents)*> FnOnce<($($va_idents,)*)> for Patchable<FnPtr, TraitPtr>
     where TraitPtr: Fn($($va_idents),*) -> Ret,
-		       FnPtr: Ree<Output = TraitPtr> + Copy {
+               FnPtr: Ree<Output = TraitPtr> + Copy {
            type Output = Ret;
           extern "rust-call" fn call_once(self, args: ($($va_idents,)*)) -> Ret {
                   self.lazy
