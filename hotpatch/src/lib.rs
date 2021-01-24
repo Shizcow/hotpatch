@@ -82,8 +82,8 @@ pub trait Ree {
     fn ree(self) -> Self::Output;
 }
 
-impl<T: 'static> Ree for fn(T) -> () {
-    type Output = Box<dyn Fn<(T,), Output = ()> + Send + Sync>;
+impl Ree for for<'r> fn(&'r str) -> &'r str {
+    type Output = Box<dyn for<'r> Fn<(&'r str,), Output = &'r str> + Send + Sync>;
     fn ree(self) -> Self::Output {
         Box::new(self)
     }

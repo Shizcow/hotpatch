@@ -1,11 +1,12 @@
 use hotpatch::*;
 
 #[allow(non_upper_case_globals)]
-static foo: Patchable<fn(i32) -> (), Box<dyn Fn(i32) -> () + Send + Sync + 'static>> =
+static foo: Patchable<fn(&str) -> &str, Box<dyn Fn(&str) -> &str + Send + Sync + 'static>> =
     Patchable::__new(|| {
         // direct copy
-        fn foo(_: i32) {
-            println!("I am Foo");
+        fn foo(a: &str) -> &str {
+            println!("I am Foo {}", a);
+            a
         }
         Patchable::__new_internal(foo, "local::foo", "fn(i32) -> ()")
     });
@@ -22,18 +23,20 @@ static foo: Patchable<fn(i32) -> (), Box<dyn Fn(i32) -> () + Send + Sync + 'stat
 
 // }
 
-fn bar(_: i32) {
+fn bar(_: &str) -> &str {
     println!("Foo Becomes Bar");
+    ""
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    foo(1);
+    foo("1");
     foo.hotpatch_fn(Box::new(bar))?;
-    foo(1);
+    foo("2");
     let a = 5;
-    foo.hotpatch_fn(Box::new(move |_: i32| {
-        println!("Foo becomes anonymous {}", a)
+    foo.hotpatch_fn(Box::new(move |_: &str| {
+        println!("Foo becomes anonymous {}", a);
+        ""
     }))?;
-    foo(1);
+    foo("3");
     Ok(())
 }
