@@ -83,7 +83,7 @@ pub use export::*;
 
 use std::mem::{transmute, transmute_copy};
 
-type FnVoid = dyn Fn() -> () + 'static;
+type FnVoid = dyn Fn() -> () + Send + Sync + 'static;
 
 /// Created by [`#[patchable]`](patchable). A functor capable of overwriting its
 /// own function.
