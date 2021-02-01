@@ -166,10 +166,25 @@ impl<RealType: ?Sized + 'static> HotpatchImportInternal<RealType> {
     }
 }
 
-// fn hotpatch_fn(&mut self, ptr: TraitPtr) -> Result<(), Box<dyn std::error::Error>> {
-//     self.current_ptr = Some(ptr);
-//     self.clean()
-// }
+// dummy just so rustc shuts up about unconstrained type args
+trait HotpatchFn<T, Dummy> {
+    unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error>>;
+}
+
+impl<RealType: ?Sized + 'static, T, Ret, Arg0> HotpatchFn<T, (Ret, Arg0)>
+    for HotpatchImportInternal<RealType>
+where
+    T: Fn(Arg0) -> Ret,
+    RealType: Fn(Arg0) -> Ret,
+{
+    unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error>> {
+        let boxed: Box<T> = Box::new(c);
+        let reboxed: Box<dyn Fn(Arg0) -> Ret> = boxed;
+        let dbox: Box<FnVoid> = std::mem::transmute(reboxed);
+        self.current_ptr = dbox;
+        self.clean()
+    }
+}
 
 // passthrough methods
 impl<RealType: ?Sized + 'static> Patchable<RealType> {
