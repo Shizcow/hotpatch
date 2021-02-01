@@ -166,40 +166,6 @@ impl<RealType: ?Sized + Send + Sync + 'static> HotpatchImportInternal<RealType> 
     }
 }
 
-// dummy just so rustc shuts up about unconstrained type args
-trait HotpatchFn<T, Dummy> {
-    unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error>>;
-}
-
-impl<RealType: ?Sized + 'static, T, Ret, Arg0> HotpatchFn<T, (Ret, Arg0)>
-    for HotpatchImportInternal<RealType>
-where
-    T: Fn(Arg0) -> Ret,
-    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
-{
-    unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error>> {
-        let boxed: Box<T> = Box::new(c);
-        let reboxed: Box<dyn Fn(Arg0) -> Ret> = boxed;
-        let dbox: Box<FnVoid> = std::mem::transmute(reboxed);
-        self.current_ptr = dbox;
-        self.clean()
-    }
-}
-
-pub trait HotpatchFnExtra<T, Dummy> {
-    fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
-}
-impl<RealType: ?Sized + Send + Sync + 'static, T, Ret, Arg0> HotpatchFnExtra<T, (Ret, Arg0)>
-    for Patchable<RealType>
-where
-    T: Fn(Arg0) -> Ret,
-    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
-{
-    fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
-        unsafe { self.lazy.as_ref().unwrap().write()?.hotpatch_fn(c) }
-    }
-}
-
 // passthrough methods
 impl<RealType: ?Sized + Send + Sync + 'static> Patchable<RealType> {
     #[doc(hidden)]
@@ -293,6 +259,110 @@ impl<RealType: ?Sized + Send + Sync + 'static> Patchable<RealType> {
         let sref = self as *const Self as *mut Self;
         let mut rref = (*sref).lazy.take().unwrap();
         let reslt = rref.get_mut().unwrap().restore_default();
+        *(*sref).lazy = Some(rref);
+        reslt
+    }
+}
+
+#[cfg(doc)]
+impl<RealType: ?Sized + Send + Sync + 'static> Patchable<RealType> {
+    /// Hotpatch this functor with functionality defined in `ptr`.
+    /// `ptr` can be a function pointer or `move` closure with the
+    /// same type signature as the functor's function.
+    ///
+    /// ## Example
+    /// ```
+    /// #[patchable]
+    /// fn foo(_: i32, _: i32, _: i32) {}
+    ///
+    /// fn bar(_: i32, _: i32, _: i32) {}
+    ///
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///   foo.hotpatch_fn(bar)?;
+    ///   foo.hotpatch_fn(move |a, b, c| println!("{} {} {}", a, b, c))?;
+    ///   Ok(())
+    /// }
+    /// ```
+    ///
+    /// ## VaArgs Note
+    /// Implementation is defined with the [`variadic_generics`](https://docs.rs/variadic_generics)
+    /// crate. This means
+    /// a macro is used to define a finite but large number of templated inputs.
+    /// If using functions with large numbers of inputs and `hotpatch_fn` does not
+    /// appear to be defined, compile `hotpatch` with the `large-signatures` feature
+    /// to increase the number of supported arguements.
+    ///
+    /// This is the only place where `large_signatures` is needed. Large signature
+    /// functions are supported out of the box for [`hotpatch_lib`](Patchable::hotpatch_lib) and
+    /// [`restore_default`](Patchable::restore_default).
+    pub fn hotpatch_fn<F>(&self, c: F) -> Result<(), Box<dyn std::error::Error + '_>>
+    where
+        F: Fn(VaGen) -> Ret,
+    {
+        // The actual implementation is below
+    }
+    /// Like [`hotpatch_fn`](Patchable::hotpatch_fn) but uses
+    /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
+    pub fn try_hotpatch_fn<F>(&self, c: F) -> Result<(), Box<dyn std::error::Error + '_>>
+    where
+        F: Fn(VaGen) -> Ret,
+    {
+        // The actual implementation is below
+    }
+    /// Like [`hotpatch_fn`](Patchable::hotpatch_fn) but uses
+    /// unsafe features to completly bypass the
+    /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
+    /// Can be used to patch the current function or parent functions.
+    /// **Use with caution**.
+    pub unsafe fn force_hotpatch_fn<F>(&self, c: F) -> Result<(), Box<dyn std::error::Error + '_>>
+    where
+        F: Fn(VaGen) -> Ret,
+    {
+        // The actual implementation is below
+    }
+}
+
+// dummy just so rustc shuts up about unconstrained type args
+trait HotpatchFn<T, Dummy> {
+    unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error>>;
+}
+
+impl<RealType: ?Sized + 'static, T, Ret, Arg0> HotpatchFn<T, (Ret, Arg0)>
+    for HotpatchImportInternal<RealType>
+where
+    T: Fn(Arg0) -> Ret,
+    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
+{
+    unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error>> {
+        let boxed: Box<T> = Box::new(c);
+        let reboxed: Box<dyn Fn(Arg0) -> Ret> = boxed;
+        let dbox: Box<FnVoid> = std::mem::transmute(reboxed);
+        self.current_ptr = dbox;
+        self.clean()
+    }
+}
+
+pub trait HotpatchFnExtra<T, Dummy> {
+    fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
+    fn try_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
+    unsafe fn force_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
+}
+impl<RealType: ?Sized + Send + Sync + 'static, T, Ret, Arg0> HotpatchFnExtra<T, (Ret, Arg0)>
+    for Patchable<RealType>
+where
+    T: Fn(Arg0) -> Ret,
+    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
+{
+    fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
+        unsafe { self.lazy.as_ref().unwrap().write()?.hotpatch_fn(c) }
+    }
+    fn try_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
+        unsafe { self.lazy.as_ref().unwrap().try_write()?.hotpatch_fn(c) }
+    }
+    unsafe fn force_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
+        let sref = self as *const Self as *mut Self;
+        let mut rref = (*sref).lazy.take().unwrap();
+        let reslt = rref.get_mut().unwrap().hotpatch_fn(c);
         *(*sref).lazy = Some(rref);
         reslt
     }
