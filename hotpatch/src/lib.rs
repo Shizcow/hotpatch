@@ -203,49 +203,49 @@ impl<RealType: ?Sized + 'static> Patchable<RealType> {
         Some(RwLock::new(HotpatchImportInternal::new(ptr, mpath, sig)))
     }
 
-    // /// Hotpatch this functor with functionality defined in `lib_name`.
-    // /// Will search a shared object `cdylib` file for [`#[patch]`](patch) exports,
-    // /// finding the definition that matches module path and signature.
-    // ///
-    // /// ## Example
-    // /// ```
-    // /// #[patchable]
-    // /// fn foo() {}
-    // ///
-    // /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // ///   foo(); // does something
-    // ///   foo.hotpatch_lib("libtest.so")?;
-    // ///   foo(); // does something else
-    // ///   Ok(())
-    // /// }
-    // /// ```
-    // pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
-    //     self.lazy.as_ref().unwrap().write()?.hotpatch_lib(lib_name)
-    // }
-    // /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
-    // /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
-    // pub fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
-    //     self.lazy
-    //         .as_ref()
-    //         .unwrap()
-    //         .try_write()?
-    //         .hotpatch_lib(lib_name)
-    // }
-    // /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
-    // /// unsafe features to completly bypass the
-    // /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
-    // /// Can be used to patch the current function or parent functions.
-    // /// **Use with caution**.
-    // pub unsafe fn force_hotpatch_lib(
-    //     &self,
-    //     lib_name: &str,
-    // ) -> Result<(), Box<dyn std::error::Error + '_>> {
-    //     let sref = self as *const Self as *mut Self;
-    //     let mut rref = (*sref).lazy.take().unwrap();
-    //     let reslt = rref.get_mut().unwrap().hotpatch_lib(lib_name);
-    //     *(*sref).lazy = Some(rref);
-    //     reslt
-    // }
+    /// Hotpatch this functor with functionality defined in `lib_name`.
+    /// Will search a shared object `cdylib` file for [`#[patch]`](patch) exports,
+    /// finding the definition that matches module path and signature.
+    ///
+    /// ## Example
+    /// ```
+    /// #[patchable]
+    /// fn foo() {}
+    ///
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///   foo(); // does something
+    ///   foo.hotpatch_lib("libtest.so")?;
+    ///   foo(); // does something else
+    ///   Ok(())
+    /// }
+    /// ```
+    pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+        self.lazy.as_ref().unwrap().write()?.hotpatch_lib(lib_name)
+    }
+    /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
+    /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
+    pub fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+        self.lazy
+            .as_ref()
+            .unwrap()
+            .try_write()?
+            .hotpatch_lib(lib_name)
+    }
+    /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
+    /// unsafe features to completly bypass the
+    /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
+    /// Can be used to patch the current function or parent functions.
+    /// **Use with caution**.
+    pub unsafe fn force_hotpatch_lib(
+        &self,
+        lib_name: &str,
+    ) -> Result<(), Box<dyn std::error::Error + '_>> {
+        let sref = self as *const Self as *mut Self;
+        let mut rref = (*sref).lazy.take().unwrap();
+        let reslt = rref.get_mut().unwrap().hotpatch_lib(lib_name);
+        *(*sref).lazy = Some(rref);
+        reslt
+    }
 
     /// Hotpatch this functor back to its original definition.
     ///
@@ -290,6 +290,34 @@ va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
     where RealType: Fn($($va_idents),*) -> Ret, {
                type Output = Ret;
                extern "rust-call" fn call_once(self, args: ($($va_idents,)*)) -> Ret {
+                   let inner =
+                       self.lazy
+                       .as_ref()
+                       .unwrap()
+                       .read()
+                       .unwrap();
+           inner.upcast_self().call(args)
+               }
+               }
+}
+va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+               impl<RealType: 'static, Ret $(,$va_idents)*> FnMut<($($va_idents,)*)> for Patchable<RealType>
+    where RealType: Fn($($va_idents),*) -> Ret, {
+           extern "rust-call" fn call_mut(&mut self, args: ($($va_idents,)*)) -> Ret {
+                   let inner =
+                       self.lazy
+                       .as_ref()
+                       .unwrap()
+                       .read()
+                       .unwrap();
+           inner.upcast_self().call(args)
+               }
+               }
+}
+va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+               impl<RealType: 'static, Ret $(,$va_idents)*> Fn<($($va_idents,)*)> for Patchable<RealType>
+    where RealType: Fn($($va_idents),*) -> Ret, {
+		   extern "rust-call" fn call(&self, args: ($($va_idents,)*)) -> Ret {
                    let inner =
                        self.lazy
                        .as_ref()
