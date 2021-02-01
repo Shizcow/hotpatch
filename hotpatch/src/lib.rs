@@ -187,7 +187,7 @@ where
 }
 
 pub trait HotpatchFnExtra<T, Dummy> {
-    unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
+    fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
 }
 impl<RealType: ?Sized + 'static, T, Ret, Arg0> HotpatchFnExtra<T, (Ret, Arg0)>
     for Patchable<RealType>
@@ -195,8 +195,8 @@ where
     T: Fn(Arg0) -> Ret,
     RealType: Fn(Arg0) -> Ret,
 {
-    unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
-        self.lazy.as_ref().unwrap().write()?.hotpatch_fn(c)
+    fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
+        unsafe { self.lazy.as_ref().unwrap().write()?.hotpatch_fn(c) }
     }
 }
 
@@ -298,46 +298,31 @@ impl<RealType: ?Sized + 'static> Patchable<RealType> {
     }
 }
 
-va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-               impl<RealType: 'static, Ret $(,$va_idents)*> FnOnce<($($va_idents,)*)> for Patchable<RealType>
-    where RealType: Fn($($va_idents),*) -> Ret, {
-               type Output = Ret;
-               extern "rust-call" fn call_once(self, args: ($($va_idents,)*)) -> Ret {
-                   let inner =
-                       self.lazy
-                       .as_ref()
-                       .unwrap()
-                       .read()
-                       .unwrap();
-           inner.upcast_self().call(args)
-               }
-               }
+impl<RealType: ?Sized + 'static, Ret, Arg0> FnOnce<(Arg0,)> for Patchable<RealType>
+where
+    RealType: Fn(Arg0) -> Ret,
+{
+    type Output = Ret;
+    extern "rust-call" fn call_once(self, args: (Arg0,)) -> Ret {
+        let inner = self.lazy.as_ref().unwrap().read().unwrap();
+        inner.upcast_self().call(args)
+    }
 }
-va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-               impl<RealType: 'static, Ret $(,$va_idents)*> FnMut<($($va_idents,)*)> for Patchable<RealType>
-    where RealType: Fn($($va_idents),*) -> Ret, {
-           extern "rust-call" fn call_mut(&mut self, args: ($($va_idents,)*)) -> Ret {
-                   let inner =
-                       self.lazy
-                       .as_ref()
-                       .unwrap()
-                       .read()
-                       .unwrap();
-           inner.upcast_self().call(args)
-               }
-               }
+impl<RealType: ?Sized + 'static, Ret, Arg0> FnMut<(Arg0,)> for Patchable<RealType>
+where
+    RealType: Fn(Arg0) -> Ret,
+{
+    extern "rust-call" fn call_mut(&mut self, args: (Arg0,)) -> Ret {
+        let inner = self.lazy.as_ref().unwrap().read().unwrap();
+        inner.upcast_self().call(args)
+    }
 }
-va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-               impl<RealType: 'static, Ret $(,$va_idents)*> Fn<($($va_idents,)*)> for Patchable<RealType>
-    where RealType: Fn($($va_idents),*) -> Ret, {
-           extern "rust-call" fn call(&self, args: ($($va_idents,)*)) -> Ret {
-                   let inner =
-                       self.lazy
-                       .as_ref()
-                       .unwrap()
-                       .read()
-                       .unwrap();
-           inner.upcast_self().call(args)
-               }
-               }
+impl<RealType: ?Sized + 'static, Ret, Arg0> Fn<(Arg0,)> for Patchable<RealType>
+where
+    RealType: Fn(Arg0) -> Ret,
+{
+    extern "rust-call" fn call(&self, args: (Arg0,)) -> Ret {
+        let inner = self.lazy.as_ref().unwrap().read().unwrap();
+        inner.upcast_self().call(args)
+    }
 }
