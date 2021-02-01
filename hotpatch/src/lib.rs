@@ -87,12 +87,12 @@ type FnVoid = dyn Fn() -> () + Send + Sync + 'static;
 
 /// Created by [`#[patchable]`](patchable). A functor capable of overwriting its
 /// own function.
-pub struct Patchable<RealType: ?Sized + 'static> {
+pub struct Patchable<RealType: ?Sized + Send + Sync + 'static> {
     lazy: Lazy<Option<RwLock<HotpatchImportInternal<RealType>>>>,
 }
 
 #[doc(hidden)]
-pub struct HotpatchImportInternal<RealType: ?Sized + 'static> {
+pub struct HotpatchImportInternal<RealType: ?Sized + Send + Sync + 'static> {
     current_ptr: Box<FnVoid>,       // void pointer
     default_ptr: Box<FnVoid>,       // void pointer
     phantom: PhantomData<RealType>, // store the real type for correct casts
@@ -101,7 +101,7 @@ pub struct HotpatchImportInternal<RealType: ?Sized + 'static> {
     mpath: &'static str,
 }
 
-impl<RealType: ?Sized + 'static> HotpatchImportInternal<RealType> {
+impl<RealType: ?Sized + Send + Sync + 'static> HotpatchImportInternal<RealType> {
     fn new<T>(ptr: T, mpath: &'static str, sig: &'static str) -> Self {
         // we know that ptr is a Box<'static raw fn ptr>, so it DOES impl Copy (kinda)
         // and because new is hidden, this assumption is safe
@@ -175,7 +175,7 @@ impl<RealType: ?Sized + 'static, T, Ret, Arg0> HotpatchFn<T, (Ret, Arg0)>
     for HotpatchImportInternal<RealType>
 where
     T: Fn(Arg0) -> Ret,
-    RealType: Fn(Arg0) -> Ret,
+    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
 {
     unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error>> {
         let boxed: Box<T> = Box::new(c);
@@ -189,11 +189,11 @@ where
 pub trait HotpatchFnExtra<T, Dummy> {
     fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
 }
-impl<RealType: ?Sized + 'static, T, Ret, Arg0> HotpatchFnExtra<T, (Ret, Arg0)>
+impl<RealType: ?Sized + Send + Sync + 'static, T, Ret, Arg0> HotpatchFnExtra<T, (Ret, Arg0)>
     for Patchable<RealType>
 where
     T: Fn(Arg0) -> Ret,
-    RealType: Fn(Arg0) -> Ret,
+    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
 {
     fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
         unsafe { self.lazy.as_ref().unwrap().write()?.hotpatch_fn(c) }
@@ -201,7 +201,7 @@ where
 }
 
 // passthrough methods
-impl<RealType: ?Sized + 'static> Patchable<RealType> {
+impl<RealType: ?Sized + Send + Sync + 'static> Patchable<RealType> {
     #[doc(hidden)]
     pub const fn __new(ptr: fn() -> Option<RwLock<HotpatchImportInternal<RealType>>>) -> Self {
         Self {
@@ -300,7 +300,7 @@ impl<RealType: ?Sized + 'static> Patchable<RealType> {
 
 impl<RealType: ?Sized + 'static, Ret, Arg0> FnOnce<(Arg0,)> for Patchable<RealType>
 where
-    RealType: Fn(Arg0) -> Ret,
+    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
 {
     type Output = Ret;
     extern "rust-call" fn call_once(self, args: (Arg0,)) -> Ret {
@@ -310,7 +310,7 @@ where
 }
 impl<RealType: ?Sized + 'static, Ret, Arg0> FnMut<(Arg0,)> for Patchable<RealType>
 where
-    RealType: Fn(Arg0) -> Ret,
+    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
 {
     extern "rust-call" fn call_mut(&mut self, args: (Arg0,)) -> Ret {
         let inner = self.lazy.as_ref().unwrap().read().unwrap();
@@ -319,7 +319,7 @@ where
 }
 impl<RealType: ?Sized + 'static, Ret, Arg0> Fn<(Arg0,)> for Patchable<RealType>
 where
-    RealType: Fn(Arg0) -> Ret,
+    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
 {
     extern "rust-call" fn call(&self, args: (Arg0,)) -> Ret {
         let inner = self.lazy.as_ref().unwrap().read().unwrap();
