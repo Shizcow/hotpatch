@@ -68,6 +68,8 @@
 //! functions definitions to run at once. This is unsafe, but allows for some really
 //! interesting things such as hotpatching `main`.
 
+use std::marker::PhantomData;
+
 use simple_error::bail;
 use std::sync::RwLock;
 
@@ -79,29 +81,40 @@ use variadic_generics::*;
 mod export;
 pub use export::*;
 
+use std::mem::{transmute, transmute_copy};
+
+type FnVoid = dyn Fn() -> () + 'static;
+
 /// Created by [`#[patchable]`](patchable). A functor capable of overwriting its
 /// own function.
-pub struct Patchable<TraitPtr> {
-    lazy: Lazy<Option<RwLock<HotpatchImportInternal<TraitPtr>>>>,
+pub struct Patchable<RealType: ?Sized + 'static> {
+    lazy: Lazy<Option<RwLock<HotpatchImportInternal<RealType>>>>,
 }
 
 #[doc(hidden)]
-pub struct HotpatchImportInternal<TraitPtr> {
-    current_ptr: Option<TraitPtr>,
-    default_ptr: TraitPtr,
+pub struct HotpatchImportInternal<RealType: ?Sized + 'static> {
+    current_ptr: Box<FnVoid>,       // void pointer
+    default_ptr: Box<FnVoid>,       // void pointer
+    phantom: PhantomData<RealType>, // store the real type for correct casts
     sig: &'static str,
     lib: Option<libloading::Library>,
     mpath: &'static str,
 }
 
-impl<TraitPtr> HotpatchImportInternal<TraitPtr> {
-    fn new(ptr: TraitPtr, mpath: &'static str, sig: &'static str) -> Self {
-        Self {
-            current_ptr: None,
-            default_ptr: ptr,
-            lib: None,
-            sig,
-            mpath: mpath.trim_start_matches(|c| c != ':'),
+impl<RealType: ?Sized + 'static> HotpatchImportInternal<RealType> {
+    fn new<T>(ptr: T, mpath: &'static str, sig: &'static str) -> Self {
+        // we know that ptr is a Box<'static raw fn ptr>, so it DOES impl Copy (kinda)
+        // and because new is hidden, this assumption is safe
+        let r = &ptr;
+        unsafe {
+            Self {
+                current_ptr: transmute_copy(r),
+                default_ptr: transmute_copy(r),
+                phantom: PhantomData,
+                lib: None,
+                sig,
+                mpath: mpath.trim_start_matches(|c| c != ':'),
+            }
         }
     }
     fn clean(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -111,12 +124,14 @@ impl<TraitPtr> HotpatchImportInternal<TraitPtr> {
         Ok(())
     }
     fn restore_default(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.current_ptr = None;
+        // see Self::new for why this is safe
+        self.current_ptr = unsafe { transmute_copy(&self.default_ptr) };
         self.clean()
     }
-    fn hotpatch_fn(&mut self, ptr: TraitPtr) -> Result<(), Box<dyn std::error::Error>> {
-        self.current_ptr = Some(ptr);
-        self.clean()
+    fn upcast_self(&self) -> &Box<RealType> {
+        let p: &Box<FnVoid> = &self.default_ptr;
+        let casted: &Box<RealType> = unsafe { transmute(p) };
+        casted
     }
     fn hotpatch_lib(&mut self, lib_name: &str) -> Result<(), Box<dyn std::error::Error>> {
         unsafe {
@@ -126,7 +141,7 @@ impl<TraitPtr> HotpatchImportInternal<TraitPtr> {
 
             loop {
                 let symbol_name = format!("{}{}", "__HOTPATCH_EXPORT_", i);
-                let exports: libloading::Symbol<*mut HotpatchExport<TraitPtr>> =
+                let exports: libloading::Symbol<*mut HotpatchExport<fn() -> ()>> =
                     lib.get(symbol_name.as_bytes()).map_err(|_| {
                         format!(
                             "Hotpatch for {} failed: symbol not found in library {}",
@@ -139,7 +154,7 @@ impl<TraitPtr> HotpatchImportInternal<TraitPtr> {
                     if self.sig != export_obj.sig {
                         bail!("Hotpatch for {} failed: symbol found but of wrong type. Expected {} but found {}", self.mpath, self.sig, export_obj.sig);
                     }
-                    self.current_ptr = Some(export_obj.ptr);
+                    self.current_ptr = Box::from(export_obj.ptr);
                     self.clean()?;
                     self.lib = Some(lib);
                     break;
@@ -151,66 +166,71 @@ impl<TraitPtr> HotpatchImportInternal<TraitPtr> {
     }
 }
 
+// fn hotpatch_fn(&mut self, ptr: TraitPtr) -> Result<(), Box<dyn std::error::Error>> {
+//     self.current_ptr = Some(ptr);
+//     self.clean()
+// }
+
 // passthrough methods
-impl<TraitPtr> Patchable<TraitPtr> {
+impl<RealType: ?Sized + 'static> Patchable<RealType> {
     #[doc(hidden)]
-    pub const fn __new(ptr: fn() -> Option<RwLock<HotpatchImportInternal<TraitPtr>>>) -> Self {
+    pub const fn __new(ptr: fn() -> Option<RwLock<HotpatchImportInternal<RealType>>>) -> Self {
         Self {
             lazy: Lazy::new(ptr),
         }
     }
     #[doc(hidden)]
-    pub fn __new_internal(
-        ptr: TraitPtr,
+    pub fn __new_internal<T>(
+        ptr: T,
         mpath: &'static str,
         sig: &'static str,
-    ) -> Option<RwLock<HotpatchImportInternal<TraitPtr>>> {
+    ) -> Option<RwLock<HotpatchImportInternal<RealType>>> {
         Some(RwLock::new(HotpatchImportInternal::new(ptr, mpath, sig)))
     }
 
-    /// Hotpatch this functor with functionality defined in `lib_name`.
-    /// Will search a shared object `cdylib` file for [`#[patch]`](patch) exports,
-    /// finding the definition that matches module path and signature.
-    ///
-    /// ## Example
-    /// ```
-    /// #[patchable]
-    /// fn foo() {}
-    ///
-    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///   foo(); // does something
-    ///   foo.hotpatch_lib("libtest.so")?;
-    ///   foo(); // does something else
-    ///   Ok(())
-    /// }
-    /// ```
-    pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
-        self.lazy.as_ref().unwrap().write()?.hotpatch_lib(lib_name)
-    }
-    /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
-    /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
-    pub fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
-        self.lazy
-            .as_ref()
-            .unwrap()
-            .try_write()?
-            .hotpatch_lib(lib_name)
-    }
-    /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
-    /// unsafe features to completly bypass the
-    /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
-    /// Can be used to patch the current function or parent functions.
-    /// **Use with caution**.
-    pub unsafe fn force_hotpatch_lib(
-        &self,
-        lib_name: &str,
-    ) -> Result<(), Box<dyn std::error::Error + '_>> {
-        let sref = self as *const Self as *mut Self;
-        let mut rref = (*sref).lazy.take().unwrap();
-        let reslt = rref.get_mut().unwrap().hotpatch_lib(lib_name);
-        *(*sref).lazy = Some(rref);
-        reslt
-    }
+    // /// Hotpatch this functor with functionality defined in `lib_name`.
+    // /// Will search a shared object `cdylib` file for [`#[patch]`](patch) exports,
+    // /// finding the definition that matches module path and signature.
+    // ///
+    // /// ## Example
+    // /// ```
+    // /// #[patchable]
+    // /// fn foo() {}
+    // ///
+    // /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // ///   foo(); // does something
+    // ///   foo.hotpatch_lib("libtest.so")?;
+    // ///   foo(); // does something else
+    // ///   Ok(())
+    // /// }
+    // /// ```
+    // pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+    //     self.lazy.as_ref().unwrap().write()?.hotpatch_lib(lib_name)
+    // }
+    // /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
+    // /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
+    // pub fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+    //     self.lazy
+    //         .as_ref()
+    //         .unwrap()
+    //         .try_write()?
+    //         .hotpatch_lib(lib_name)
+    // }
+    // /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
+    // /// unsafe features to completly bypass the
+    // /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
+    // /// Can be used to patch the current function or parent functions.
+    // /// **Use with caution**.
+    // pub unsafe fn force_hotpatch_lib(
+    //     &self,
+    //     lib_name: &str,
+    // ) -> Result<(), Box<dyn std::error::Error + '_>> {
+    //     let sref = self as *const Self as *mut Self;
+    //     let mut rref = (*sref).lazy.take().unwrap();
+    //     let reslt = rref.get_mut().unwrap().hotpatch_lib(lib_name);
+    //     *(*sref).lazy = Some(rref);
+    //     reslt
+    // }
 
     /// Hotpatch this functor back to its original definition.
     ///
@@ -250,33 +270,9 @@ impl<TraitPtr> Patchable<TraitPtr> {
     }
 }
 
-impl<Ret: ?Sized> Patchable<Box<dyn Fn(&str) -> &Ret + Send + Sync>> {
-    pub fn hotpatch_fn<F>(&self, ptr: F) -> Result<(), Box<dyn std::error::Error + '_>>
-    where
-        F: Fn(&str) -> &Ret + Send + Sync + 'static,
-    {
-        let pre_boxed: Box<F> = Box::new(ptr);
-        self.lazy.as_ref().unwrap().write()?.hotpatch_fn(pre_boxed)
-    }
-}
-
-#[allow(non_upper_case_globals)]
-static foo: Patchable<Box<dyn Fn(&str) -> &str + Send + Sync>> = Patchable::__new(|| {
-    // direct copy
-    fn foo(a: &str) -> &str {
-        println!("I am Foo {}", a);
-        a
-    }
-    Patchable::__new_internal(Box::new(foo), "local::foo", "fn(i32) -> ()")
-});
-
-pub fn ree() -> Result<(), Box<dyn std::error::Error + 'static>> {
-    foo.hotpatch_fn(|_| "")
-}
-
 va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-               impl<TraitPtr, Ret $(,$va_idents)*> FnOnce<($($va_idents,)*)> for Patchable<TraitPtr>
-    where TraitPtr: Fn($($va_idents),*) -> Ret, {
+               impl<RealType: 'static, Ret $(,$va_idents)*> FnOnce<($($va_idents,)*)> for Patchable<RealType>
+    where RealType: Fn($($va_idents),*) -> Ret, {
                type Output = Ret;
                extern "rust-call" fn call_once(self, args: ($($va_idents,)*)) -> Ret {
                    let inner =
@@ -285,47 +281,7 @@ va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
                        .unwrap()
                        .read()
                        .unwrap();
-           if inner.current_ptr.is_some() {
-               inner.current_ptr.as_ref().unwrap().call(args)
-           } else {
-               inner.default_ptr.call(args)
-           }
-               }
-               }
-}
-va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-               impl<TraitPtr, Ret $(,$va_idents)*> FnMut<($($va_idents,)*)> for Patchable<TraitPtr>
-    where TraitPtr: Fn($($va_idents),*) -> Ret, {
-               extern "rust-call" fn call_mut(&mut self, args: ($($va_idents,)*)) -> Ret {
-                   let inner =
-                       self.lazy
-                       .as_ref()
-                       .unwrap()
-                       .read()
-                       .unwrap();
-           if inner.current_ptr.is_some() {
-               inner.current_ptr.as_ref().unwrap().call(args)
-           } else {
-               inner.default_ptr.call(args)
-           }
-               }
-               }
-}
-va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-               impl<TraitPtr, Ret $(,$va_idents)*> Fn<($($va_idents,)*)> for Patchable<TraitPtr>
-    where TraitPtr: Fn($($va_idents),*) -> Ret, {
-               extern "rust-call" fn call(&self, args: ($($va_idents,)*)) -> Ret {
-                   let inner =
-                       self.lazy
-                       .as_ref()
-                       .unwrap()
-                       .read()
-                       .unwrap();
-           if inner.current_ptr.is_some() {
-               inner.current_ptr.as_ref().unwrap().call(args)
-           } else {
-               inner.default_ptr.call(args)
-           }
+           inner.upcast_self().call(args)
                }
                }
 }
