@@ -186,6 +186,20 @@ where
     }
 }
 
+pub trait HotpatchFnExtra<T, Dummy> {
+    unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
+}
+impl<RealType: ?Sized + 'static, T, Ret, Arg0> HotpatchFnExtra<T, (Ret, Arg0)>
+    for Patchable<RealType>
+where
+    T: Fn(Arg0) -> Ret,
+    RealType: Fn(Arg0) -> Ret,
+{
+    unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
+        self.lazy.as_ref().unwrap().write()?.hotpatch_fn(c)
+    }
+}
+
 // passthrough methods
 impl<RealType: ?Sized + 'static> Patchable<RealType> {
     #[doc(hidden)]
@@ -202,7 +216,6 @@ impl<RealType: ?Sized + 'static> Patchable<RealType> {
     ) -> Option<RwLock<HotpatchImportInternal<RealType>>> {
         Some(RwLock::new(HotpatchImportInternal::new(ptr, mpath, sig)))
     }
-
     /// Hotpatch this functor with functionality defined in `lib_name`.
     /// Will search a shared object `cdylib` file for [`#[patch]`](patch) exports,
     /// finding the definition that matches module path and signature.
@@ -317,7 +330,7 @@ va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
 va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
                impl<RealType: 'static, Ret $(,$va_idents)*> Fn<($($va_idents,)*)> for Patchable<RealType>
     where RealType: Fn($($va_idents),*) -> Ret, {
-		   extern "rust-call" fn call(&self, args: ($($va_idents,)*)) -> Ret {
+           extern "rust-call" fn call(&self, args: ($($va_idents,)*)) -> Ret {
                    let inner =
                        self.lazy
                        .as_ref()
