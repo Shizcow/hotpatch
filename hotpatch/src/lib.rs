@@ -129,7 +129,7 @@ impl<RealType: ?Sized + 'static> HotpatchImportInternal<RealType> {
         self.clean()
     }
     fn upcast_self(&self) -> &Box<RealType> {
-        let p: &Box<FnVoid> = &self.default_ptr;
+        let p: &Box<FnVoid> = &self.current_ptr;
         let casted: &Box<RealType> = unsafe { transmute(p) };
         casted
     }
