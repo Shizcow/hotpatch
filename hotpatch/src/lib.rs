@@ -85,6 +85,15 @@ use std::mem::{transmute, transmute_copy};
 
 type FnVoid = dyn Fn() -> () + Send + Sync + 'static;
 
+macro_rules! va_largesig {
+    ($va_len:tt, $va_idents:tt, $va_indices:tt, $($tt:tt)+) => {
+	#[cfg(not(feature = "large-signatures"))]
+	va_expand_with_nil! { $va_len $va_idents $va_indices $($tt)* }
+	#[cfg(feature = "large-signatures")]
+	va_expand_more_with_nil! { $va_len $va_idents $va_indices $($tt)* }
+    }
+}
+
 /// Created by [`#[patchable]`](patchable). A functor capable of overwriting its
 /// own function.
 pub struct Patchable<RealType: ?Sized + Send + Sync + 'static> {
@@ -327,21 +336,22 @@ trait HotpatchFn<T, Dummy> {
     unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error>>;
 }
 
-va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-impl<RealType: ?Sized + 'static, T, Ret, $($va_idents,)*> HotpatchFn<T, (Ret, $($va_idents,)*)>
-    for HotpatchImportInternal<RealType>
-where
-               T: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
-    RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
-{
-    unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error>> {
-        let boxed: Box<T> = Box::new(c);
-        let reboxed: Box<dyn Fn($($va_idents,)*) -> Ret> = boxed;
-        let dbox: Box<FnVoid> = std::mem::transmute(reboxed);
-        self.current_ptr = dbox;
-        self.clean()
-    }
-}
+#[cfg(not(doc))]
+va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
+        impl<RealType: ?Sized + 'static, T, Ret, $($va_idents,)*> HotpatchFn<T, (Ret, $($va_idents,)*)>
+        for HotpatchImportInternal<RealType>
+    where
+        T: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
+        RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
+        {
+            unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error>> {
+            let boxed: Box<T> = Box::new(c);
+            let reboxed: Box<dyn Fn($($va_idents,)*) -> Ret> = boxed;
+            let dbox: Box<FnVoid> = std::mem::transmute(reboxed);
+            self.current_ptr = dbox;
+            self.clean()
+            }
+        }
 }
 
 pub trait HotpatchFnExtra<T, Dummy> {
@@ -349,42 +359,46 @@ pub trait HotpatchFnExtra<T, Dummy> {
     fn try_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
     unsafe fn force_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
 }
-va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
-               impl<RealType: ?Sized + Send + Sync + 'static, T, Ret, $($va_idents,)*> HotpatchFnExtra<T, (Ret, $($va_idents,)*)>
-               for Patchable<RealType>
+
+#[cfg(not(doc))]
+va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
+        impl<RealType: ?Sized + Send + Sync + 'static, T, Ret, $($va_idents,)*> HotpatchFnExtra<T, (Ret, $($va_idents,)*)>
+        for Patchable<RealType>
     where
-		       T: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
-               RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
-               {
-               fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
-                   unsafe { self.lazy.as_ref().unwrap().write()?.hotpatch_fn(c) }
-               }
-               fn try_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
-                   unsafe { self.lazy.as_ref().unwrap().try_write()?.hotpatch_fn(c) }
-               }
-               unsafe fn force_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
-                   let sref = self as *const Self as *mut Self;
-                   let mut rref = (*sref).lazy.take().unwrap();
-                   let reslt = rref.get_mut().unwrap().hotpatch_fn(c);
-                   *(*sref).lazy = Some(rref);
-                   reslt
-               }
-               }
+        T: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
+        RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
+        {
+            fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
+            unsafe { self.lazy.as_ref().unwrap().write()?.hotpatch_fn(c) }
+            }
+            fn try_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
+            unsafe { self.lazy.as_ref().unwrap().try_write()?.hotpatch_fn(c) }
+            }
+            unsafe fn force_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
+            let sref = self as *const Self as *mut Self;
+            let mut rref = (*sref).lazy.take().unwrap();
+            let reslt = rref.get_mut().unwrap().hotpatch_fn(c);
+            *(*sref).lazy = Some(rref);
+            reslt
+            }
+        }
 }
 
-va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+#[cfg(not(doc))]
+va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
                 impl<RealType: ?Sized + 'static, Ret, $($va_idents,)*> FnOnce<($($va_idents,)*)> for Patchable<RealType>
     where
                 RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
                 {
                 type Output = Ret;
                     extern "rust-call" fn call_once(self, args: ($($va_idents,)*)) -> Ret {
-                    let inner = self.lazy.as_ref().unwrap().read().unwrap();
+            let inner = self.lazy.as_ref().unwrap().read().unwrap();
                     inner.upcast_self().call(args)
                 }
                 }
 }
-va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+#[cfg(not(doc))]
+va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
                 impl<RealType: ?Sized + 'static, Ret, $($va_idents,)*> FnMut<($($va_idents,)*)> for Patchable<RealType>
     where
                 RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
@@ -395,7 +409,8 @@ va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
                 }
                 }
 }
-va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+#[cfg(not(doc))]
+va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
                 impl<RealType: ?Sized + 'static, Ret, $($va_idents,)*> Fn<($($va_idents,)*)> for Patchable<RealType>
     where
                 RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
