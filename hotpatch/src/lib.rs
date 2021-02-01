@@ -327,19 +327,21 @@ trait HotpatchFn<T, Dummy> {
     unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error>>;
 }
 
-impl<RealType: ?Sized + 'static, T, Ret, Arg0> HotpatchFn<T, (Ret, Arg0)>
+va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+impl<RealType: ?Sized + 'static, T, Ret, $($va_idents,)*> HotpatchFn<T, (Ret, $($va_idents,)*)>
     for HotpatchImportInternal<RealType>
 where
-    T: Fn(Arg0) -> Ret,
-    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
+               T: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
+    RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
 {
     unsafe fn hotpatch_fn(&mut self, c: T) -> Result<(), Box<dyn std::error::Error>> {
         let boxed: Box<T> = Box::new(c);
-        let reboxed: Box<dyn Fn(Arg0) -> Ret> = boxed;
+        let reboxed: Box<dyn Fn($($va_idents,)*) -> Ret> = boxed;
         let dbox: Box<FnVoid> = std::mem::transmute(reboxed);
         self.current_ptr = dbox;
         self.clean()
     }
+}
 }
 
 pub trait HotpatchFnExtra<T, Dummy> {
@@ -347,52 +349,60 @@ pub trait HotpatchFnExtra<T, Dummy> {
     fn try_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
     unsafe fn force_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
 }
-impl<RealType: ?Sized + Send + Sync + 'static, T, Ret, Arg0> HotpatchFnExtra<T, (Ret, Arg0)>
-    for Patchable<RealType>
-where
-    T: Fn(Arg0) -> Ret,
-    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
-{
-    fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
-        unsafe { self.lazy.as_ref().unwrap().write()?.hotpatch_fn(c) }
-    }
-    fn try_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
-        unsafe { self.lazy.as_ref().unwrap().try_write()?.hotpatch_fn(c) }
-    }
-    unsafe fn force_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
-        let sref = self as *const Self as *mut Self;
-        let mut rref = (*sref).lazy.take().unwrap();
-        let reslt = rref.get_mut().unwrap().hotpatch_fn(c);
-        *(*sref).lazy = Some(rref);
-        reslt
-    }
+va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+               impl<RealType: ?Sized + Send + Sync + 'static, T, Ret, $($va_idents,)*> HotpatchFnExtra<T, (Ret, $($va_idents,)*)>
+               for Patchable<RealType>
+    where
+		       T: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
+               RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
+               {
+               fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
+                   unsafe { self.lazy.as_ref().unwrap().write()?.hotpatch_fn(c) }
+               }
+               fn try_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
+                   unsafe { self.lazy.as_ref().unwrap().try_write()?.hotpatch_fn(c) }
+               }
+               unsafe fn force_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>> {
+                   let sref = self as *const Self as *mut Self;
+                   let mut rref = (*sref).lazy.take().unwrap();
+                   let reslt = rref.get_mut().unwrap().hotpatch_fn(c);
+                   *(*sref).lazy = Some(rref);
+                   reslt
+               }
+               }
 }
 
-impl<RealType: ?Sized + 'static, Ret, Arg0> FnOnce<(Arg0,)> for Patchable<RealType>
-where
-    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
-{
-    type Output = Ret;
-    extern "rust-call" fn call_once(self, args: (Arg0,)) -> Ret {
-        let inner = self.lazy.as_ref().unwrap().read().unwrap();
-        inner.upcast_self().call(args)
-    }
+va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+                impl<RealType: ?Sized + 'static, Ret, $($va_idents,)*> FnOnce<($($va_idents,)*)> for Patchable<RealType>
+    where
+                RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
+                {
+                type Output = Ret;
+                    extern "rust-call" fn call_once(self, args: ($($va_idents,)*)) -> Ret {
+                    let inner = self.lazy.as_ref().unwrap().read().unwrap();
+                    inner.upcast_self().call(args)
+                }
+                }
 }
-impl<RealType: ?Sized + 'static, Ret, Arg0> FnMut<(Arg0,)> for Patchable<RealType>
-where
-    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
-{
-    extern "rust-call" fn call_mut(&mut self, args: (Arg0,)) -> Ret {
-        let inner = self.lazy.as_ref().unwrap().read().unwrap();
-        inner.upcast_self().call(args)
-    }
+va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+                impl<RealType: ?Sized + 'static, Ret, $($va_idents,)*> FnMut<($($va_idents,)*)> for Patchable<RealType>
+    where
+                RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
+                {
+                extern "rust-call" fn call_mut(&mut self, args: ($($va_idents,)*)) -> Ret {
+                    let inner = self.lazy.as_ref().unwrap().read().unwrap();
+                    inner.upcast_self().call(args)
+                }
+                }
 }
-impl<RealType: ?Sized + 'static, Ret, Arg0> Fn<(Arg0,)> for Patchable<RealType>
-where
-    RealType: Fn(Arg0) -> Ret + Send + Sync + 'static,
-{
-    extern "rust-call" fn call(&self, args: (Arg0,)) -> Ret {
-        let inner = self.lazy.as_ref().unwrap().read().unwrap();
-        inner.upcast_self().call(args)
-    }
+va_expand_with_nil! { ($va_len:tt) ($($va_idents:ident),*) ($($va_indices:tt),*)
+                impl<RealType: ?Sized + 'static, Ret, $($va_idents,)*> Fn<($($va_idents,)*)> for Patchable<RealType>
+    where
+                RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
+                {
+                extern "rust-call" fn call(&self, args: ($($va_idents,)*)) -> Ret {
+                    let inner = self.lazy.as_ref().unwrap().read().unwrap();
+                    inner.upcast_self().call(args)
+                }
+                }
 }
