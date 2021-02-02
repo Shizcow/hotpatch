@@ -157,13 +157,13 @@ impl<RealType: ?Sized + Send + Sync + 'static> HotpatchImportInternal<RealType> 
                             self.mpath, lib_name
                         )
                     })?;
-                let export_obj = Box::from_raw(*exports);
+                let export_obj = &**exports;
                 if export_obj.symbol.trim_start_matches(|c| c != ':') == self.mpath {
                     // found the correct symbol
                     if self.sig != export_obj.sig {
                         bail!("Hotpatch for {} failed: symbol found but of wrong type. Expected {} but found {}", self.mpath, self.sig, export_obj.sig);
                     }
-                    self.current_ptr = Box::from(export_obj.ptr);
+                    self.current_ptr = Box::new(export_obj.ptr);
                     self.clean()?;
                     self.lib = Some(lib);
                     break;

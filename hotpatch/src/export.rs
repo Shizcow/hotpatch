@@ -5,12 +5,12 @@
 pub struct HotpatchExport<T: 'static> {
     pub symbol: &'static str,
     pub sig: &'static str,
-    pub ptr: &'static T,
+    pub ptr: T,
 }
 
 impl<T: 'static> HotpatchExport<T> {
     #[doc(hidden)]
-    pub const fn __new(ptr: &'static T, symbol: &'static str, sig: &'static str) -> Self {
+    pub const fn __new(ptr: T, symbol: &'static str, sig: &'static str) -> Self {
         Self { symbol, sig, ptr }
     }
 }

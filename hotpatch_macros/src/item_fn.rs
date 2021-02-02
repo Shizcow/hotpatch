@@ -58,7 +58,7 @@ pub fn patchable(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
             }
         }
     };
-    
+
     TokenStream::from(quote! {
     #docitem
     #[cfg(not(doc))]
@@ -115,7 +115,7 @@ pub fn patch(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
     #item
     #[doc(hidden)]
     #[no_mangle]
-    pub static #hotpatch_name: hotpatch::HotpatchExport<fn(#fargs) -> #output_type> =
+    pub static #hotpatch_name: hotpatch::HotpatchExport<fn#fargs -> #output_type> =
             hotpatch::HotpatchExport::__new(#fn_name,
                         #mname,
                         #sigtext);
