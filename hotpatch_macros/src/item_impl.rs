@@ -5,6 +5,10 @@ use quote::ToTokens;
 use syn::{FnArg::Typed, Ident, ImplItemConst, ImplItemMethod, ItemImpl, ReturnType::Type};
 
 pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream {
+    let mut tt = proc_macro2::TokenStream::new();
+    fn_item.self_ty.clone().to_tokens(&mut tt);
+    let impl_name = tt.to_string();
+    
     fn_item.items = fn_item
         .items
         .drain(..)
@@ -31,11 +35,18 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
                     let item_name = fn_name.clone();
                     fn_name = Ident::new("__hotpatch_internal_staticwrap", Span::call_site());
                     item.sig.ident = fn_name.clone();
+		    let mname = match &modpath {
+			Some(mpath) => 
+			    format!("!__associated_fn:{}:{}", impl_name, mpath),
+			None => 
+			    format!("!__associated_fn:{}:{}", impl_name, item_name),
+		    };
+		    
 		    let p_item = syn::parse2::<ImplItemConst>(quote! {
 			#[cfg(not(doc))]
 			#[allow(non_upper_case_globals)]
 			#vis const #item_name: hotpatch::MutConst<Patchable<dyn Fn#fargs -> #output_type + Send + Sync + 'static>> =hotpatch::MutConst::new(|| {
-			    #[patchable(#modpath)]
+			    #[patchable(#mname)]
 			    #item
 			    &#fn_name
 			});

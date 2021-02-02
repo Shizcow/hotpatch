@@ -3,7 +3,6 @@
 //! You probably want documentation for the [`hotpatch`](https://docs.rs/hotpatch) crate.
 
 use proc_macro::TokenStream;
-use quote::ToTokens;
 use std::sync::RwLock;
 use syn::{parse::Nothing, ItemFn, ItemImpl, Path};
 
@@ -79,16 +78,17 @@ fn get_modpath(attr: TokenStream) -> Result<Option<String>, ()> {
     if syn::parse::<Nothing>(attr.clone()).is_ok() {
         Ok(None)
     } else {
-        let path = syn::parse::<Path>(attr.clone());
-        if path.is_err() {
-            proc_macro::Span::call_site().error("Expected module path")
-		.help("Just use #[patchable]; it's already module aware.")
-		.help("If you're trying to spoof a module path, the supplied arguement is an invalid path")
-		.emit();
-            return Err(());
+        let s = attr.to_string();
+        if !s.starts_with("\"") && !s.ends_with("\"") {
+            let path = syn::parse::<Path>(attr.clone());
+            if path.is_err() {
+                proc_macro::Span::call_site().error("Expected module path")
+		    .help("Just use #[patchable]; it's already module aware.")
+		    .help("If you're trying to spoof a module path, the supplied arguement is an invalid path")
+		    .emit();
+                return Err(());
+            }
         }
-        let mut ts = proc_macro2::TokenStream::new();
-        path.unwrap().to_tokens(&mut ts);
-        Ok(Some(ts.to_string().replace(" ", "")))
+        Ok(Some(s.replace(" ", "")))
     }
 }
