@@ -380,3 +380,19 @@ va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
                 }
                 }
 }
+
+// methods stuff
+pub struct MutConst<T: 'static> {
+    f: fn() -> &'static T,
+}
+impl<T> MutConst<T> {
+    pub const fn new(f: fn() -> &'static T) -> Self {
+        Self { f }
+    }
+}
+impl<T> std::ops::Deref for MutConst<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        (self.f)()
+    }
+}
