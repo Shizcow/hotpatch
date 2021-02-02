@@ -1,4 +1,4 @@
-use hotpatch::patchable;
+use hotpatch::*;
 
 mod a {
     use hotpatch::patchable;

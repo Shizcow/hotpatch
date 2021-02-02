@@ -160,49 +160,6 @@ impl<RealType: ?Sized + Send + Sync + 'static> Patchable<RealType> {
     ) -> Option<RwLock<HotpatchImportInternal<RealType>>> {
         Some(RwLock::new(HotpatchImportInternal::new(ptr, mpath, sig)))
     }
-    /// Hotpatch this functor with functionality defined in `lib_name`.
-    /// Will search a shared object `cdylib` file for [`#[patch]`](patch) exports,
-    /// finding the definition that matches module path and signature.
-    ///
-    /// ## Example
-    /// ```
-    /// #[patchable]
-    /// fn foo() {}
-    ///
-    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///   foo(); // does something
-    ///   foo.hotpatch_lib("libtest.so")?;
-    ///   foo(); // does something else
-    ///   Ok(())
-    /// }
-    /// ```
-    pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
-        self.lazy.as_ref().unwrap().write()?.hotpatch_lib(lib_name)
-    }
-    /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
-    /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
-    pub fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
-        self.lazy
-            .as_ref()
-            .unwrap()
-            .try_write()?
-            .hotpatch_lib(lib_name)
-    }
-    /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
-    /// unsafe features to completly bypass the
-    /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
-    /// Can be used to patch the current function or parent functions.
-    /// **Use with caution**.
-    pub unsafe fn force_hotpatch_lib(
-        &self,
-        lib_name: &str,
-    ) -> Result<(), Box<dyn std::error::Error + '_>> {
-        let sref = self as *const Self as *mut Self;
-        let mut rref = (*sref).lazy.take().unwrap();
-        let reslt = rref.get_mut().unwrap().hotpatch_lib(lib_name);
-        *(*sref).lazy = Some(rref);
-        reslt
-    }
 
     /// Hotpatch this functor back to its original definition.
     ///
@@ -329,7 +286,7 @@ trait HotpatchLib<Dummy> {
 #[cfg(not(doc))]
 va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
         impl<RealType: ?Sized + Send + Sync + 'static, Ret: 'static, $($va_idents: 'static,)*> HotpatchLib<(Ret, $($va_idents,)*)>
-        for &mut HotpatchImportInternal<RealType>
+    for HotpatchImportInternal<RealType>
 where
     RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
 {
@@ -367,6 +324,46 @@ where
         Ok(())
     }
 }
+}
+
+pub trait HotpatchLibExtra<Dummy> {
+    fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>>;
+    fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>>;
+    unsafe fn force_hotpatch_lib(
+        &self,
+        lib_name: &str,
+    ) -> Result<(), Box<dyn std::error::Error + '_>>;
+}
+
+#[cfg(not(doc))]
+va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
+        impl<RealType: ?Sized + Send + Sync + 'static, Ret: 'static, $($va_idents: 'static,)*> HotpatchLibExtra<(Ret, $($va_idents,)*)>
+        for Patchable<RealType>
+    where
+        RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
+
+        {
+    fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+        self.lazy.as_ref().unwrap().write()?.hotpatch_lib(lib_name)
+    }
+    fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+        self.lazy
+            .as_ref()
+            .unwrap()
+            .try_write()?
+            .hotpatch_lib(lib_name)
+    }
+    unsafe fn force_hotpatch_lib(
+        &self,
+        lib_name: &str,
+    ) -> Result<(), Box<dyn std::error::Error + '_>> {
+        let sref = self as *const Self as *mut Self;
+        let mut rref = (*sref).lazy.take().unwrap();
+        let reslt = rref.get_mut().unwrap().hotpatch_lib(lib_name);
+        *(*sref).lazy = Some(rref);
+        reslt
+    }
+        }
 }
 
 pub trait HotpatchFnExtra<T, Dummy> {
