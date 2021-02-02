@@ -1,27 +1,25 @@
-#![feature(unboxed_closures)]
-
 use hotpatch::*;
 
+/// I'm a functor
 #[patchable]
-fn foo(a: &str) -> &str {
-    println!("I am Foo {}", a);
-    a
+fn foo(_: i32) {
+    println!("I am Foo");
 }
 
-fn bar(_: &str) -> &str {
+/// I'm a function with extra bits
+#[patch]
+fn tmp(_: i32) {}
+
+fn bar(_: i32) {
     println!("Foo Becomes Bar");
-    ""
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    foo("1");
+    foo(1);
     foo.hotpatch_fn(bar)?;
-    foo("2");
+    foo(1);
     let a = 5;
-    foo.hotpatch_fn(move |_: &str| {
-        println!("Foo becomes anonymous {}", a);
-        ""
-    })?;
-    foo("3");
+    foo.hotpatch_fn(move |_: i32| println!("Foo becomes anonymous {}", a))?;
+    foo(1);
     Ok(())
 }
