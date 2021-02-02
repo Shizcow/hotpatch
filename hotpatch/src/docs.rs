@@ -54,4 +54,39 @@ impl<RealType: ?Sized + Send + Sync + 'static> Patchable<RealType> {
     {
         // The actual implementation is in toplevel
     }
+    /// Hotpatch this functor with functionality defined in `lib_name`.
+    /// Will search a shared object `cdylib` file for [`#[patch]`](patch) exports,
+    /// finding the definition that matches module path and signature.
+    ///
+    /// ## Example
+    /// ```
+    /// #[patchable]
+    /// fn foo() {}
+    ///
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///   foo(); // does something
+    ///   foo.hotpatch_lib("libtest.so")?;
+    ///   foo(); // does something else
+    ///   Ok(())
+    /// }
+    /// ```
+    pub fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+        // The actual implementation is in toplevel
+    }
+    /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
+    /// [`RwLock::try_write`](https://doc.rust-lang.org/std/sync/struct.RwLock.html#method.try_write).
+    pub fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>> {
+        // The actual implementation is in toplevel
+    }
+    /// Like [`hotpatch_lib`](Patchable::hotpatch_lib) but uses
+    /// unsafe features to completly bypass the
+    /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
+    /// Can be used to patch the current function or parent functions.
+    /// **Use with caution**.
+    pub unsafe fn force_hotpatch_lib(
+        &self,
+        lib_name: &str,
+    ) -> Result<(), Box<dyn std::error::Error + '_>> {
+        // The actual implementation is in toplevel
+    }
 }
