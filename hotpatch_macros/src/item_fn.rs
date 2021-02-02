@@ -20,25 +20,21 @@ pub fn patchable(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
 
     let vis = item.vis.clone(); // pass through pub
 
-    item.attrs.append(
+    let mut docitem = item.clone();
+    docitem.attrs.append(
         &mut syn::parse2::<syn::ItemStruct>(quote! {
-        ///
-        /// ---
-        /// ## Hotpatch
-        /// **Warning**: This item is [`#[patchable]`](hotpatch::patchable). Runtime behavior may not
-        /// follow the source implementation. See the
-        /// [Hotpatch Documentation](hotpatch) for more information.
-        struct Dummy {}
+            ///
+            /// ---
+            /// ## Hotpatch
+            /// **Warning**: This item is [`#[patchable]`](hotpatch::patchable). Runtime behavior may not
+            /// follow the source implementation. See the
+            /// [Hotpatch Documentation](hotpatch) for more information.
+        #[cfg(doc)]
+            struct Dummy {}
         })
         .unwrap()
         .attrs,
     );
-
-    let docitem = item.clone();
-    let doc_header = quote! {
-    #[cfg(doc)]
-    #docitem
-    };
 
     let item_name = fn_name.clone();
     item.sig.ident = fn_name.clone();
@@ -62,9 +58,9 @@ pub fn patchable(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
             }
         }
     };
-
+    
     TokenStream::from(quote! {
-    #doc_header
+    #docitem
     #[cfg(not(doc))]
     #[allow(non_upper_case_globals)]
     #vis static #item_name: hotpatch::Patchable<dyn Fn#fargs -> #output_type + Send + Sync + 'static> = hotpatch::Patchable::__new(
