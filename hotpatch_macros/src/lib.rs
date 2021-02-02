@@ -84,7 +84,7 @@ fn get_modpath(attr: TokenStream) -> Result<Option<String>, ()> {
 		.emit();
             return Err(());
         }
-        let mut ts = syn::export::TokenStream2::new();
+        let mut ts = proc_macro2::TokenStream::new();
         path.unwrap().to_tokens(&mut ts);
         Ok(Some(ts.to_string().replace(" ", "")))
     }
