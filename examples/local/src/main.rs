@@ -2,19 +2,11 @@
 
 use hotpatch::*;
 
-#[allow(non_upper_case_globals)]
-static foo: Patchable<dyn Fn(&str) -> &str + Send + Sync + 'static> = Patchable::__new(|| {
-    // direct copy
-    fn foo(a: &str) -> &str {
-        println!("I am Foo {}", a);
-        a
-    }
-    Patchable::__new_internal(
-        Box::new(foo) as Box<dyn Fn(&str) -> &str + Send + Sync + 'static>,
-        "local::foo",
-        "fn(i32) -> ()",
-    )
-});
+#[patchable]
+fn foo(a: &str) -> &str {
+    println!("I am Foo {}", a);
+    a
+}
 
 fn bar(_: &str) -> &str {
     println!("Foo Becomes Bar");
