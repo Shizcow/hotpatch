@@ -8,9 +8,7 @@ fn foo(_: i32) {
 
 /// I'm a function with extra bits
 #[patch]
-fn tmp(_: i32) {
-
-}
+fn tmp(_: i32) {}
 
 fn bar(_: i32) {
     println!("Foo Becomes Bar");
