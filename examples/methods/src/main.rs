@@ -22,15 +22,11 @@ static __hotpatch_implgen_0: hotpatch::Patchable<dyn Fn() -> () + Send + Sync + 
             "fn() -> ()",
         )
     });
-#[cfg(not(doc))]
-fn __hotpatch_staticwrap_0() -> &'static Patchable<dyn Fn() -> () + Send + Sync + 'static> {
-    &__hotpatch_implgen_0
-}
 impl Foo {
     #[cfg(not(doc))]
     #[allow(non_upper_case_globals)]
     pub const bar: hotpatch::MutConst<Patchable<dyn Fn() -> () + Send + Sync + 'static>> =
-        hotpatch::MutConst::new(__hotpatch_staticwrap_0);
+        hotpatch::MutConst::new(|| &__hotpatch_implgen_0);
     #[cfg(doc)]
     /// Warnings here
     pub fn bar() {
