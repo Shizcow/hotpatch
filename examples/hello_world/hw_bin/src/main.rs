@@ -12,6 +12,7 @@ mod a {
 }
 
 #[patchable]
+/// This is what a patchable item looks like. Just like a function!
 fn foo() {
     println!("I am from source foo.");
 }
