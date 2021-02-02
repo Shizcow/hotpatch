@@ -11,22 +11,23 @@ impl __HotpatchTraitGen_0 for Foo {
         println!("this is passthrough!");
     }
 }
-#[cfg(not(doc))]
-#[allow(non_upper_case_globals)]
-static __hotpatch_implgen_0: hotpatch::Patchable<dyn Fn() -> () + Send + Sync + 'static> =
-    hotpatch::Patchable::__new(|| {
-        hotpatch::Patchable::__new_internal(
-            Box::new(<Foo as __HotpatchTraitGen_0>::bar)
-                as Box<dyn Fn() -> () + Send + Sync + 'static>,
-            "hw_bin::foo",
-            "fn() -> ()",
-        )
-    });
 impl Foo {
     #[cfg(not(doc))]
     #[allow(non_upper_case_globals)]
     pub const bar: hotpatch::MutConst<Patchable<dyn Fn() -> () + Send + Sync + 'static>> =
-        hotpatch::MutConst::new(|| &__hotpatch_implgen_0);
+        hotpatch::MutConst::new(|| {
+            static __hotpatch_implgen_0: hotpatch::Patchable<
+                dyn Fn() -> () + Send + Sync + 'static,
+            > = hotpatch::Patchable::__new(|| {
+                hotpatch::Patchable::__new_internal(
+                    Box::new(<Foo as __HotpatchTraitGen_0>::bar)
+                        as Box<dyn Fn() -> () + Send + Sync + 'static>,
+                    "hw_bin::foo",
+                    "fn() -> ()",
+                )
+            });
+            &__hotpatch_implgen_0
+        });
     #[cfg(doc)]
     /// Warnings here
     pub fn bar() {
