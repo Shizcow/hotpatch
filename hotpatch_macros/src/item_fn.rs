@@ -123,7 +123,7 @@ pub fn patch(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
     })
 }
 
-fn gather_info(item: ItemFn) -> (syn::Type, syn::Type, Ident, String, ItemFn) {
+pub fn gather_info(item: ItemFn) -> (syn::Type, syn::Type, Ident, String, ItemFn) {
     let fn_name = item.sig.ident.clone();
     let output_type = if let Type(_, t) = &item.sig.output {
         *(t.clone())

@@ -5,9 +5,10 @@
 use proc_macro::TokenStream;
 use quote::ToTokens;
 use std::sync::RwLock;
-use syn::{parse::Nothing, ItemFn, Path};
+use syn::{parse::Nothing, ItemFn, ItemImpl, Path};
 
 mod item_fn;
+mod item_impl;
 
 lazy_static::lazy_static! {
     static ref EXPORTNUM: RwLock<usize> = RwLock::new(0);
@@ -35,8 +36,10 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
     if modpath.is_err() {
         return TokenStream::new();
     }
-    if let Ok(fn_item) = syn::parse::<ItemFn>(input) {
-        item_fn::patchable(fn_item, modpath.unwrap())
+    if let Ok(item) = syn::parse::<ItemFn>(input.clone()) {
+        item_fn::patchable(item, modpath.unwrap())
+    } else if let Ok(item) = syn::parse::<ItemImpl>(input) {
+        item_impl::patchable(item, modpath.unwrap())
     } else {
         panic!("I can't hotpatch this yet!");
     }
