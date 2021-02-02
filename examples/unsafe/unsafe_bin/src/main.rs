@@ -1,6 +1,6 @@
 #![feature(main)]
 
-use hotpatch::patchable;
+use hotpatch::*;
 
 #[patchable]
 fn main() -> Result<(), Box<dyn std::error::Error>> {

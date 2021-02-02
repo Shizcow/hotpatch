@@ -1,4 +1,4 @@
-use hotpatch::patchable;
+use hotpatch::*;
 
 #[patchable]
 fn foo() {

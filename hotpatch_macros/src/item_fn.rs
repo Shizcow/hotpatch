@@ -7,7 +7,7 @@ use syn::{FnArg::Typed, Ident, ItemFn, ReturnType::Type};
 use crate::EXPORTNUM;
 
 pub fn patchable(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
-    let (fargs, output_type, fn_name, sigtext, mut item) = gather_info(fn_item);
+    let (fargs, output_type, mut fn_name, sigtext, mut item) = gather_info(fn_item);
 
     if !cfg!(feature = "allow-main") && !cfg!(feature = "redirect-main") && fn_name == "main" {
         fn_name.span().unwrap().error("Attempted to set main as patchable")
@@ -37,6 +37,7 @@ pub fn patchable(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
     );
 
     let item_name = fn_name.clone();
+    fn_name = Ident::new("__hotpatch_internal_fn_mangle_name", Span::call_site());
     item.sig.ident = fn_name.clone();
 
     let redirected_main = if cfg!(feature = "redirect-main") && item_name == "main" {
