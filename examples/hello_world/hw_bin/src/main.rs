@@ -1,19 +1,23 @@
-use hotpatch::patchable;
+use hotpatch::*;
 
 mod a {
     use hotpatch::patchable;
     #[patchable]
     pub fn bar(a: i32) {
-	println!("I am from source bar. I have {} as an arg. I am module aware.", a);
+        println!(
+            "I am from source bar. I have {} as an arg. I am module aware.",
+            a
+        );
     }
 }
-    
+
 #[patchable]
+/// This is what a patchable item looks like. Just like a function!
 fn foo() {
     println!("I am from source foo.");
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {    
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     foo(); // prints "I am from source"
     foo.hotpatch_lib("target/debug/libhw_obj.so")?;
     foo(); // prints something totally different

@@ -43,3 +43,19 @@ function definitions to be in effect at once.
 
 ## Docs
 For more information, see the [docs](https://docs.rs/hotpatch).
+
+
+## TODO
+This crate is still has a long way to go before being "finished". Below are some items left to do. Submit an issue or PR to this section for feature requests!  
+- `no_std` and use features to give the widest possible functionality
+  - probably will need to move back to `lazy_static`
+- member functions (in progress)
+  - document what's needed for actual methods, as apposed to just associated member functions
+- finalize the license change
+- `#[patchable] ||()` to generate from a closure (is this even possible?)
+- lower compile times
+  - minimize dependencies
+  - version correctly
+    - `hotpatch_macros` dependency needs to be exact
+  - include only necessary features for sub-dependencies
+- properly document nightly feature requirements
