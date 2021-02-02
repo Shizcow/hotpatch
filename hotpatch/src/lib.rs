@@ -150,7 +150,7 @@ impl<RealType: ?Sized + Send + Sync + 'static> HotpatchImportInternal<RealType> 
 
             loop {
                 let symbol_name = format!("{}{}", "__HOTPATCH_EXPORT_", i);
-                let exports: libloading::Symbol<*mut HotpatchExport<fn() -> ()>> =
+                let exports: libloading::Symbol<*mut HotpatchExport<fn(i32) -> ()>> =
                     lib.get(symbol_name.as_bytes()).map_err(|_| {
                         format!(
                             "Hotpatch for {} failed: symbol not found in library {}",
@@ -163,7 +163,9 @@ impl<RealType: ?Sized + Send + Sync + 'static> HotpatchImportInternal<RealType> 
                     if self.sig != export_obj.sig {
                         bail!("Hotpatch for {} failed: symbol found but of wrong type. Expected {} but found {}", self.mpath, self.sig, export_obj.sig);
                     }
-                    self.current_ptr = Box::new(export_obj.ptr);
+                    let d: Box<fn(i32) -> ()> = Box::new(export_obj.ptr);
+                    let t: Box<dyn Fn(i32) -> () + Send + Sync + 'static> = d;
+                    self.current_ptr = transmute(t);
                     self.clean()?;
                     self.lib = Some(lib);
                     break;
