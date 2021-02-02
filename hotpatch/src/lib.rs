@@ -16,7 +16,7 @@
 //! dead-simple this crate is to use:
 //! ```
 //! // main.rs
-//! use hotpatch::patchable;
+//! use hotpatch::*;
 //!
 //! #[patchable]
 //! fn foo() { }
@@ -80,6 +80,9 @@ use variadic_generics::*;
 
 mod export;
 pub use export::*;
+
+mod docs;
+pub use docs::*;
 
 use std::mem::{transmute, transmute_copy};
 
@@ -267,6 +270,7 @@ where
 }
 }
 
+/// Public interface for [Patchable::hotpatch_lib] and associated; requires import to use
 pub trait HotpatchLib<Dummy> {
     fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>>;
     fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>>;
@@ -307,6 +311,7 @@ va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
         }
 }
 
+/// Public interface for [Patchable::hotpatch_fn] and associated; requires import to use
 pub trait HotpatchFn<T, Dummy> {
     fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
     fn try_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
