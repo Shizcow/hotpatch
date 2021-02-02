@@ -16,7 +16,7 @@ The following shows how
 dead-simple this crate is to use:
 ```rust
 // main.rs
-use hotpatch::patchable;
+use hotpatch::*;
 
 #[patchable]
 fn foo() { }
