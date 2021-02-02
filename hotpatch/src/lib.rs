@@ -142,39 +142,6 @@ impl<RealType: ?Sized + Send + Sync + 'static> HotpatchImportInternal<RealType> 
         let casted: &Box<RealType> = unsafe { transmute(p) };
         casted
     }
-    fn hotpatch_lib(&mut self, lib_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-        unsafe {
-            let lib = libloading::Library::new(lib_name)?;
-
-            let mut i: usize = 0;
-
-            loop {
-                let symbol_name = format!("{}{}", "__HOTPATCH_EXPORT_", i);
-                let exports: libloading::Symbol<*mut HotpatchExport<fn(i32) -> ()>> =
-                    lib.get(symbol_name.as_bytes()).map_err(|_| {
-                        format!(
-                            "Hotpatch for {} failed: symbol not found in library {}",
-                            self.mpath, lib_name
-                        )
-                    })?;
-                let export_obj = &**exports;
-                if export_obj.symbol.trim_start_matches(|c| c != ':') == self.mpath {
-                    // found the correct symbol
-                    if self.sig != export_obj.sig {
-                        bail!("Hotpatch for {} failed: symbol found but of wrong type. Expected {} but found {}", self.mpath, self.sig, export_obj.sig);
-                    }
-                    let d: Box<fn(i32) -> ()> = Box::new(export_obj.ptr);
-                    let t: Box<dyn Fn(i32) -> () + Send + Sync + 'static> = d;
-                    self.current_ptr = transmute(t);
-                    self.clean()?;
-                    self.lib = Some(lib);
-                    break;
-                }
-                i += 1;
-            }
-        }
-        Ok(())
-    }
 }
 
 // passthrough methods
@@ -354,6 +321,52 @@ va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
             self.clean()
             }
         }
+}
+trait HotpatchLib<Dummy> {
+    fn hotpatch_lib(&mut self, lib_name: &str) -> Result<(), Box<dyn std::error::Error>>;
+}
+
+#[cfg(not(doc))]
+va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
+        impl<RealType: ?Sized + Send + Sync + 'static, Ret: 'static, $($va_idents: 'static,)*> HotpatchLib<(Ret, $($va_idents,)*)>
+        for &mut HotpatchImportInternal<RealType>
+where
+    RealType: Fn($($va_idents,)*) -> Ret + Send + Sync + 'static,
+{
+    fn hotpatch_lib(&mut self, lib_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+        unsafe {
+            let lib = libloading::Library::new(lib_name)?;
+
+            let mut i: usize = 0;
+
+            loop {
+                let symbol_name = format!("{}{}", "__HOTPATCH_EXPORT_", i);
+                let exports: libloading::Symbol<*mut HotpatchExport<fn($($va_idents,)*) -> Ret>> =
+                    lib.get(symbol_name.as_bytes()).map_err(|_| {
+                        format!(
+                            "Hotpatch for {} failed: symbol not found in library {}",
+                            self.mpath, lib_name
+                        )
+                    })?;
+                let export_obj = &**exports;
+                if export_obj.symbol.trim_start_matches(|c| c != ':') == self.mpath {
+                    // found the correct symbol
+                    if self.sig != export_obj.sig {
+                        bail!("Hotpatch for {} failed: symbol found but of wrong type. Expected {} but found {}", self.mpath, self.sig, export_obj.sig);
+                    }
+                    let d: Box<fn($($va_idents,)*) -> Ret> = Box::new(export_obj.ptr);
+                    let t: Box<dyn Fn($($va_idents,)*) -> Ret + Send + Sync + 'static> = d;
+                    self.current_ptr = transmute(t);
+                    self.clean()?;
+                    self.lib = Some(lib);
+                    break;
+                }
+                i += 1;
+            }
+        }
+        Ok(())
+    }
+}
 }
 
 pub trait HotpatchFnExtra<T, Dummy> {
