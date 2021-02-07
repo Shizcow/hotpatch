@@ -181,7 +181,7 @@ pub fn gather_info(item: ImplItemMethod) -> (syn::Type, syn::Type, ImplItemMetho
                     t.ty.to_tokens(&mut ts);
                     ts.to_string()
                 } else {
-                    todo!() // give an error or something
+                    panic!("self parameter is not allowed. Can't hotpatch methods (yet!)")
                 }
             })
             .collect::<Vec<String>>()
