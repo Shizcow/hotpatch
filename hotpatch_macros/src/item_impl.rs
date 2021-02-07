@@ -4,6 +4,8 @@ use quote::quote;
 use quote::ToTokens;
 use syn::{FnArg::Typed, Ident, ImplItemConst, ImplItemMethod, ItemImpl, ReturnType::Type};
 
+use crate::EXPORTNUM;
+
 pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream {
     let mut tt = proc_macro2::TokenStream::new();
     fn_item.self_ty.clone().to_tokens(&mut tt);
@@ -77,6 +79,14 @@ pub fn patch(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream {
             match item {
                 syn::ImplItem::Method(m) => {
                     let (fargs, output_type, _item, fn_name, sigtext) = gather_info(m.clone());
+
+		    let exnum;
+		    {
+			// scope is used so EXPORTNUM is unlocked faster
+			let mut r = EXPORTNUM.write().unwrap();
+			exnum = *r;
+			*r += 1;
+		    }
 		    
                     m.attrs.append(
                         &mut syn::parse2::<syn::ItemStruct>(quote! {
@@ -93,18 +103,22 @@ pub fn patch(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream {
                     );
 		    
                     let item_name = fn_name.clone();
-		    
+
 		    let mname = match &modpath {
-			Some(mpath) => 
-			    format!("!__associated_fn:{}:{}", impl_name, mpath),
-			None => 
-			    format!("!__associated_fn:{}:{}", impl_name, item_name),
+			Some(mpath) =>
+			    quote! {
+				concat!("::!__associated_fn:", #impl_name, ":" #mpath)
+			    },
+			None => quote! {
+			    concat!(module_path!(), "::!__associated_fn:", #impl_name, ":", stringify!(#fn_name))
+			},
 		    };
+		    let hotpatch_name = Ident::new(&format!("__HOTPATCH_EXPORT_{}", exnum), Span::call_site());
 		    
 		    quote! {
 			#[doc(hidden)]
 			#[no_mangle]
-			pub static __HOTPATCH_EXPORT_TODO: hotpatch::HotpatchExport<fn#fargs -> #output_type> =
+			pub static #hotpatch_name: hotpatch::HotpatchExport<fn#fargs -> #output_type> =
 			    hotpatch::HotpatchExport::__new(
 				#self_type :: #item_name,
 				#mname,

@@ -5,10 +5,9 @@ use hotpatch::*;
 /// This may be possible to lock down even more with typeid, but that's WIP upstream
 struct Foo {}
 
-// macro input:
 #[patch]
 impl Foo {
-    /// DOCTEST_ME_HARDER
+    /// remember, #[patch] is top-level
     pub fn bar() {
         println!("this is external!");
     }
