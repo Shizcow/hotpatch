@@ -12,6 +12,7 @@ members = [
     "examples/multiple/multiple_obj2",
     "examples/local",
     "examples/methods",
+    "examples/methods_extra_obj",
     "examples/unsafe/unsafe_bin",
     "examples/unsafe/unsafe_obj",
 ]

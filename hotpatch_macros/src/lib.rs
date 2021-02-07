@@ -67,10 +67,12 @@ pub fn patch(attr: TokenStream, input: TokenStream) -> TokenStream {
     if modpath.is_err() {
         return TokenStream::new();
     }
-    if let Ok(fn_item) = syn::parse::<ItemFn>(input) {
+    if let Ok(fn_item) = syn::parse::<ItemFn>(input.clone()) {
         item_fn::patch(fn_item, modpath.unwrap())
+    } else if let Ok(item) = syn::parse::<ItemImpl>(input) {
+        item_impl::patch(item, modpath.unwrap())
     } else {
-        panic!("I can't patch this yet!");
+        panic!("I can't turn this into a patch yet!");
     }
 }
 

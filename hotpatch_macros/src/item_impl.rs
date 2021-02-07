@@ -15,7 +15,7 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
         .map(|item| {
             match item {
                 syn::ImplItem::Method(m) => {
-                    let (fargs, output_type, mut item, mut fn_name) = gather_info(m);
+                    let (fargs, output_type, mut item, mut fn_name, _sigtext) = gather_info(m);
                     let vis = item.vis.clone(); // pass through pub
                     let mut docitem = item.clone();
                     docitem.attrs.append(
@@ -62,7 +62,67 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
     })
 }
 
-pub fn gather_info(item: ImplItemMethod) -> (syn::Type, syn::Type, ImplItemMethod, Ident) {
+
+pub fn patch(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream {
+    
+    let mut tt = proc_macro2::TokenStream::new();
+    fn_item.self_ty.clone().to_tokens(&mut tt);
+    let impl_name = tt.to_string();
+    let self_type = fn_item.self_ty.clone();
+    
+    let exports: Vec<_> = fn_item
+        .items
+        .iter_mut()
+        .map(|item| {
+            match item {
+                syn::ImplItem::Method(m) => {
+                    let (fargs, output_type, _item, fn_name, sigtext) = gather_info(m.clone());
+		    
+                    m.attrs.append(
+                        &mut syn::parse2::<syn::ItemStruct>(quote! {
+			    ///
+			    /// ---
+			    /// ## Hotpatch
+			    /// This item is a [`#[patch]`](hotpatch::patch). It will silently define a public static
+			    /// symbol `__HOTPATCH_EXPORT_N` for use in shared object files. See the
+			    /// [Hotpatch Documentation](hotpatch) for more information.
+                            struct Dummy {}
+                        })
+                            .unwrap()
+                            .attrs,
+                    );
+		    
+                    let item_name = fn_name.clone();
+		    
+		    let mname = match &modpath {
+			Some(mpath) => 
+			    format!("!__associated_fn:{}:{}", impl_name, mpath),
+			None => 
+			    format!("!__associated_fn:{}:{}", impl_name, item_name),
+		    };
+		    
+		    quote! {
+			#[doc(hidden)]
+			#[no_mangle]
+			pub static __HOTPATCH_EXPORT_TODO: hotpatch::HotpatchExport<fn#fargs -> #output_type> =
+			    hotpatch::HotpatchExport::__new(
+				#self_type :: #item_name,
+				#mname,
+				#sigtext,
+			    );
+		    }
+                }
+                _ => panic!("There's something in this impl block I can't hotpatch yet"),
+            }
+            }).collect();
+
+    TokenStream::from(quote! {
+	#fn_item
+	#(#exports)*
+    })
+}
+
+pub fn gather_info(item: ImplItemMethod) -> (syn::Type, syn::Type, ImplItemMethod, Ident, String) {
     let fn_name = item.sig.ident.clone();
     let output_type = if let Type(_, t) = &item.sig.output {
         *(t.clone())
@@ -92,7 +152,28 @@ pub fn gather_info(item: ImplItemMethod) -> (syn::Type, syn::Type, ImplItemMetho
             (#(#args),*,)
         }
     })
-    .unwrap();
+	.unwrap();
 
-    (fargs, output_type, item, fn_name)
+    
+    let sigtext = format!(
+        "fn({}) -> {}",
+        item.sig
+            .inputs
+            .clone()
+            .into_iter()
+            .map(|input| {
+                if let syn::FnArg::Typed(t) = input {
+                    let mut ts = proc_macro2::TokenStream::new();
+                    t.ty.to_tokens(&mut ts);
+                    ts.to_string()
+                } else {
+                    todo!() // give an error or something
+                }
+            })
+            .collect::<Vec<String>>()
+            .join(", "), 
+        ts
+    );
+
+    (fargs, output_type, item, fn_name, sigtext)
 }

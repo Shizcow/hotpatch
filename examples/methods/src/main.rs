@@ -15,5 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Foo::bar();
     Foo::bar.hotpatch_fn(|| println!("this is patch!"))?;
     Foo::bar();
+    Foo::bar.hotpatch_lib("target/debug/libmethods_obj.so")?;
+    Foo::bar();
     Ok(())
 }
