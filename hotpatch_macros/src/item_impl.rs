@@ -9,6 +9,7 @@ use crate::EXPORTNUM;
 pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream {
     let mut tt = proc_macro2::TokenStream::new();
     fn_item.self_ty.clone().to_tokens(&mut tt);
+    let self_ty = fn_item.self_ty.clone();
     let impl_name = tt.to_string();
     
     fn_item.items = fn_item
@@ -17,7 +18,27 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
         .map(|item| {
             match item {
                 syn::ImplItem::Method(m) => {
-                    let (fargs, output_type, mut item, mut fn_name, _sigtext) = gather_info(m);
+                    let (mut fargs, mut output_type, mut item, mut fn_name, _sigtext) = gather_info(m);
+
+		    // transform arguements from Self notation to concrete type (only in inetermediate variables)
+		    if let syn::Type::Tuple(ref mut t) = fargs {
+			for farg in t.elems.iter_mut() {
+			    if let syn::Type::Path(p) = farg {
+				if p.path.segments.first().map(|s| s.ident.to_string()) == Some("Self".to_owned()) {
+				    let span = p.path.segments.first().unwrap().ident.span();
+				    p.path.segments.first_mut().unwrap().ident = Ident::new(&impl_name, span);
+				}
+			    }
+			}
+		    }
+		    // same but for return value
+		    if let syn::Type::Path(ref mut p) = output_type {
+			if p.path.segments.first().map(|s| s.ident.to_string()) == Some("Self".to_owned()) {
+			    let span = p.path.segments.first().unwrap().ident.span();
+			    p.path.segments.first_mut().unwrap().ident = Ident::new(&impl_name, span);
+			}
+		    }
+		    
                     let vis = item.vis.clone(); // pass through pub
                     let mut docitem = item.clone();
                     docitem.attrs.append(
@@ -31,7 +52,7 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
                         #[cfg(doc)]
                             struct Dummy {}
                         })
-                        .unwrap()
+                            .unwrap()
                         .attrs,
                     );
                     let item_name = fn_name.clone();
@@ -44,20 +65,33 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
 			    format!("!__associated_fn:{}:{}", impl_name, item_name),
 		    };
 		    
-		    let p_item = syn::parse2::<ImplItemConst>(quote! {
+		    let c_item = syn::parse2::<ImplItemConst>(quote! {
 			#[cfg(not(doc))]
 			#[allow(non_upper_case_globals)]
 			#vis const #item_name: hotpatch::MutConst<Patchable<dyn Fn#fargs -> #output_type + Send + Sync + 'static>> =hotpatch::MutConst::new(|| {
-			    #[patchable(#mname)]
-			    #item
-			    &#fn_name
+			    #[cfg(not(doc))]
+			    #[allow(non_upper_case_globals)]
+			    static __hotpatch_internal_pwrap: hotpatch::Patchable<
+				    dyn Fn#fargs -> #output_type + Send + Sync + 'static,
+				> = hotpatch::Patchable::__new(|| {
+				    hotpatch::Patchable::__new_internal(
+					Box::new(#self_ty ::__hotpatch_internal_staticwrap)
+					    as Box<dyn Fn#fargs -> #output_type + Send + Sync + 'static>,
+					"methods::!__associated_fn:Foo:new",
+					"fn() -> Foo",
+				    )
+				});
+			    &__hotpatch_internal_pwrap
 			});
 		    }).unwrap();
-		    (syn::ImplItem::Method(docitem), syn::ImplItem::Const(p_item))
+		    let f_item = syn::parse2::<ImplItemMethod>(quote! {
+			#item
+		    }).unwrap();
+		    (syn::ImplItem::Method(docitem), syn::ImplItem::Const(c_item), syn::ImplItem::Method(f_item))
                 }
                 _ => panic!("There's something in this impl block I can't hotpatch yet"),
             }
-        }).fold(vec![], |mut acc, (c1, c2)| {acc.push(c1); acc.push(c2); acc});
+        }).fold(vec![], |mut acc, (c1, c2, c3)| {acc.push(c1); acc.push(c2); acc.push(c3); acc});
 
     TokenStream::from(quote! {
     #fn_item
