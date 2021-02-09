@@ -7,12 +7,6 @@ struct Foo {
 /// And this is where free associated items can be defined
 #[patchable]
 impl Foo {
-    fn typetest(
-        _m: &mut Result<Self, &Self>,
-        _i: Box<dyn Iterator<Item = Box<dyn Fn(Self) -> Self>>>,
-    ) {
-        unimplemented!();
-    }
     /// Here's one of them!
     fn new() -> Self {
         Self {
