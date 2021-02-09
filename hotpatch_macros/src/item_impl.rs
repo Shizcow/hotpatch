@@ -250,7 +250,6 @@ fn transform_self(impl_name: &str, farg: &mut syn::Type) {
 	    use syn::PathArguments::*;
 	    for seg in p.path.segments.iter_mut() {
 		match &mut seg.arguments {
-		    None => (),
 		    AngleBracketed(args) => {
 			for arg in args.args.iter_mut() {
 			    use syn::GenericArgument::*;
@@ -268,10 +267,17 @@ fn transform_self(impl_name: &str, farg: &mut syn::Type) {
 			    }
 			}
 		    },
-		    Parenthesized(args) => {
-			panic!("{:?}", args);
-
+		    Parenthesized(p) => {
+			for input in p.inputs.iter_mut() {
+			    transform_self(impl_name, input);
+			}
+			use syn::ReturnType::*;
+			match &mut p.output {
+			    Type(_, t) => transform_self(impl_name, t),
+			    Default => (),
+			}
 		    },
+		    None => (),
 		}
 	    }
 	},
