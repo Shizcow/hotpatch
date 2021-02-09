@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   foo(); // does nothing
   foo.hotpatch_lib("libsomething.so")?;
   foo(); // does something totally different!
-  foo.hotpatch_fn(|| println!("Dyamic!"))?;
+  foo.hotpatch_fn(|| println!("Dynamic!"))?;
   foo(); // even more modification!
   Ok(())
 }
