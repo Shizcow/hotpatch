@@ -254,6 +254,7 @@ fn transform_self(impl_name: &str, farg: &mut syn::Type) {
 		    for arg in args.args.iter_mut() {
 			match arg {
 			    syn::GenericArgument::Type(t) => transform_self(impl_name, t),
+			    syn::GenericArgument::Binding(b) => transform_self(impl_name, &mut b.ty),
 			    _ => (),
 			}
 		    }
@@ -267,5 +268,20 @@ fn transform_self(impl_name: &str, farg: &mut syn::Type) {
     }
     if let syn::Type::Reference(r) = farg {
 	transform_self(impl_name, &mut r.elem);
+    }
+    if let syn::Type::TraitObject(d) = farg {
+	for bound in d.bounds.iter_mut() {
+	    if let syn::TypeParamBound::Trait(t) = bound {
+		// I can't think of a less stupid way to do this
+		let mut tpath = syn::Type::Path(syn::TypePath {
+		    qself: None,
+		    path: t.path.clone(),
+		});
+		transform_self(impl_name, &mut tpath);
+		if let syn::Type::Path(p) = tpath {
+		    t.path = p.path;
+		}
+	    }
+	}
     }
 }
