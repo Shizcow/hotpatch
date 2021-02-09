@@ -13,7 +13,7 @@ lazy_static::lazy_static! {
 
 pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream {
     let mut tt = proc_macro2::TokenStream::new();
-    fn_item.self_ty.clone().to_tokens(&mut tt);
+    fn_item.self_ty.to_tokens(&mut tt);
     let self_ty = fn_item.self_ty.clone();
     let impl_name = tt.to_string();
     
@@ -105,7 +105,7 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
 pub fn patch(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream {
     
     let mut tt = proc_macro2::TokenStream::new();
-    fn_item.self_ty.clone().to_tokens(&mut tt);
+    fn_item.self_ty.to_tokens(&mut tt);
     let impl_name = tt.to_string();
     let self_type = fn_item.self_ty.clone();
     
@@ -203,7 +203,7 @@ fn gather_info(item: ImplItemMethod) -> (syn::Type, syn::Type, ImplItemMethod, I
         }
     }
 
-    let fargs = syn::parse2::<syn::Type>(if args.len() == 0 {
+    let fargs = syn::parse2::<syn::Type>(if args.is_empty() {
         quote! {
             ()
         }

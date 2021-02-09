@@ -164,7 +164,7 @@ fn gather_info(item: ItemFn) -> (syn::Type, syn::Type, Ident, String, ItemFn) {
         }
     }
 
-    let fargs = syn::parse2::<syn::Type>(if args.len() == 0 {
+    let fargs = syn::parse2::<syn::Type>(if args.is_empty() {
         quote! {
             ()
         }

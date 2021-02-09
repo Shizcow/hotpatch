@@ -2,9 +2,6 @@
 #![feature(fn_traits)]
 #![feature(const_fn)]
 #![feature(const_fn_fn_ptr_basics)]
-#![feature(unsized_fn_params)]
-#![feature(unsize)]
-#![feature(coerce_unsized)]
 
 //! Changing function definitions at runtime.
 //!
@@ -134,7 +131,7 @@ pub use docs::*;
 
 use std::mem::{transmute, transmute_copy};
 
-type FnVoid = dyn Fn() -> () + Send + Sync + 'static;
+type FnVoid = dyn Fn() + Send + Sync + 'static;
 
 macro_rules! va_largesig {
     ($va_len:tt, $va_idents:tt, $va_indices:tt, $($tt:tt)+) => {
@@ -188,10 +185,8 @@ impl<RealType: ?Sized + Send + Sync + 'static> HotpatchImportInternal<RealType> 
         self.current_ptr = unsafe { transmute_copy(&self.default_ptr) };
         self.clean()
     }
-    fn upcast_self(&self) -> &Box<RealType> {
-        let p: &Box<FnVoid> = &self.current_ptr;
-        let casted: &Box<RealType> = unsafe { transmute(p) };
-        casted
+    fn upcast_self(&self) -> &RealType {
+        unsafe { transmute_copy(&self.current_ptr) }
     }
 }
 
@@ -240,6 +235,15 @@ impl<RealType: ?Sized + Send + Sync + 'static> Patchable<RealType> {
     /// unsafe features to completly bypass the
     /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
     /// Can be used to patch the current function or parent functions.
+    ///
+    /// # Safety
+    /// This mutates a global static, and has all the thread-saftey issues associated with it.
+    /// The main cause of unsafety isthe fact that multiple function definitions can be in affect
+    /// __at the same time__. This can cause a hotpatch to not work as intended (as nothing may have changed!).
+    ///
+    /// Additionally, as the internal value is `taken`, this causes a teeny tiny bit of undefined behavior
+    /// if a thread tries to call a `Patchable` during a (small but nonzero duration) `force` transition.
+    ///
     /// **Use with caution**.
     pub unsafe fn force_restore_default(&self) -> Result<(), Box<dyn std::error::Error + '_>> {
         let sref = self as *const Self as *mut Self;
@@ -318,10 +322,11 @@ where
 }
 }
 
-/// Public interface for [Patchable::hotpatch_lib] and associated; requires import to use
+/// Public interface for [Patchable::hotpatch_lib] and associated; requires import to use.
 pub trait HotpatchLib<Dummy> {
     fn hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>>;
     fn try_hotpatch_lib(&self, lib_name: &str) -> Result<(), Box<dyn std::error::Error + '_>>;
+    #[allow(clippy::missing_safety_doc)] // documentation is elsewhere and linked to
     unsafe fn force_hotpatch_lib(
         &self,
         lib_name: &str,
@@ -363,6 +368,7 @@ va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
 pub trait HotpatchFn<T, Dummy> {
     fn hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
     fn try_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
+    #[allow(clippy::missing_safety_doc)] // documentation is elsewhere and linked to
     unsafe fn force_hotpatch_fn(&self, c: T) -> Result<(), Box<dyn std::error::Error + '_>>;
 }
 

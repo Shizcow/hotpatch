@@ -52,6 +52,15 @@ where
     /// unsafe features to completly bypass the
     /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
     /// Can be used to patch the current function or parent functions.
+    ///
+    /// # Safety
+    /// This mutates a global static, and has all the thread-saftey issues associated with it.
+    /// The main cause of unsafety isthe fact that multiple function definitions can be in affect
+    /// __at the same time__. This can cause a hotpatch to not work as intended (as nothing may have changed!).
+    ///
+    /// Additionally, as the internal value is `taken`, this causes a teeny tiny bit of undefined behavior
+    /// if a thread tries to call a `Patchable` during a (small but nonzero duration) `force` transition.
+    ///
     /// **Use with caution**.
     pub unsafe fn force_hotpatch_fn<F>(&self, ptr: F) -> Result<(), Box<dyn std::error::Error + '_>>
     where
@@ -97,6 +106,15 @@ where
     /// unsafe features to completly bypass the
     /// [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html).
     /// Can be used to patch the current function or parent functions.
+    ///
+    /// # Safety
+    /// This mutates a global static, and has all the thread-saftey issues associated with it.
+    /// The main cause of unsafety isthe fact that multiple function definitions can be in affect
+    /// __at the same time__. This can cause a hotpatch to not work as intended (as nothing may have changed!).
+    ///
+    /// Additionally, as the internal value is `taken`, this causes a teeny tiny bit of undefined behavior
+    /// if a thread tries to call a `Patchable` during a (small but nonzero duration) `force` transition.
+    ///
     /// **Use with caution**.
     pub unsafe fn force_hotpatch_lib(
         &self,

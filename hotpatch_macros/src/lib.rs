@@ -81,7 +81,7 @@ fn get_modpath(attr: TokenStream) -> Result<Option<String>, ()> {
         Ok(None)
     } else {
         let s = attr.to_string();
-        let path = syn::parse::<Path>(attr.clone());
+        let path = syn::parse::<Path>(attr);
         if path.is_err() {
             proc_macro::Span::call_site().error("Expected module path")
 		.help("Just use #[patchable]; it's already module aware.")
