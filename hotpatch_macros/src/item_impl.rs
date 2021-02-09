@@ -18,7 +18,7 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
         .map(|item| {
             match item {
                 syn::ImplItem::Method(m) => {
-                    let (mut fargs, mut output_type, mut item, mut fn_name, _sigtext) = gather_info(m);
+                    let (mut fargs, mut output_type, mut item, mut fn_name, sigtext) = gather_info(m);
 
 		    // transform arguements from Self notation to concrete type (only in inetermediate variables)
 		    if let syn::Type::Tuple(ref mut t) = fargs {
@@ -77,8 +77,8 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
 				    hotpatch::Patchable::__new_internal(
 					Box::new(#self_ty ::__hotpatch_internal_staticwrap)
 					    as Box<dyn Fn#fargs -> #output_type + Send + Sync + 'static>,
-					"methods::!__associated_fn:Foo:new",
-					"fn() -> Foo",
+					concat!(module_path!(), "::", #mname),
+					#sigtext,
 				    )
 				});
 			    &__hotpatch_internal_pwrap
