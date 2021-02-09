@@ -31,26 +31,15 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
 			wrapper_num = *r;
 			*r += 1;
 		    }
-
-		    // TODO: this is done in a few places; turn into a function
+		    
 		    // transform arguements from Self notation to concrete type (only in inetermediate variables)
 		    if let syn::Type::Tuple(ref mut t) = fargs {
 			for farg in t.elems.iter_mut() {
-			    if let syn::Type::Path(p) = farg {
-				if p.path.segments.first().map(|s| s.ident.to_string()) == Some("Self".to_owned()) {
-				    let span = p.path.segments.first().unwrap().ident.span();
-				    p.path.segments.first_mut().unwrap().ident = Ident::new(&impl_name, span);
-				}
-			    }
+			    transform_self(&impl_name, farg);
 			}
 		    }
 		    // same but for return value
-		    if let syn::Type::Path(ref mut p) = output_type {
-			if p.path.segments.first().map(|s| s.ident.to_string()) == Some("Self".to_owned()) {
-			    let span = p.path.segments.first().unwrap().ident.span();
-			    p.path.segments.first_mut().unwrap().ident = Ident::new(&impl_name, span);
-			}
-		    }
+		    transform_self(&impl_name, &mut output_type);
 		    
                     let vis = item.vis.clone(); // pass through pub
                     let mut docitem = item.clone();
@@ -130,21 +119,11 @@ pub fn patch(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream {
 		    // transform arguements from Self notation to concrete type (only in inetermediate variables)
 		    if let syn::Type::Tuple(ref mut t) = fargs {
 			for farg in t.elems.iter_mut() {
-			    if let syn::Type::Path(p) = farg {
-				if p.path.segments.first().map(|s| s.ident.to_string()) == Some("Self".to_owned()) {
-				    let span = p.path.segments.first().unwrap().ident.span();
-				    p.path.segments.first_mut().unwrap().ident = Ident::new(&impl_name, span);
-				}
-			    }
+			    transform_self(&impl_name, farg);
 			}
 		    }
 		    // same but for return value
-		    if let syn::Type::Path(ref mut p) = output_type {
-			if p.path.segments.first().map(|s| s.ident.to_string()) == Some("Self".to_owned()) {
-			    let span = p.path.segments.first().unwrap().ident.span();
-			    p.path.segments.first_mut().unwrap().ident = Ident::new(&impl_name, span);
-			}
-		    }
+		    transform_self(&impl_name, &mut output_type);
 
 		    let exnum;
 		    {
@@ -256,4 +235,37 @@ fn gather_info(item: ImplItemMethod) -> (syn::Type, syn::Type, ImplItemMethod, I
     );
 
     (fargs, output_type, item, fn_name, sigtext)
+}
+
+
+fn transform_self(impl_name: &str, farg: &mut syn::Type) {
+    if let syn::Type::Path(p) = farg {
+	if p.path.segments.first().map(|s| s.ident.to_string()) == Some("Self".to_owned()) {
+	    let span = p.path.segments.first().unwrap().ident.span();
+	    p.path.segments.first_mut().unwrap().ident = Ident::new(&impl_name, span);
+	}
+
+	// generics too
+	use syn::PathArguments::*;
+	for seg in p.path.segments.iter_mut() {
+	    match &mut seg.arguments {
+		None => (),
+		AngleBracketed(args) => {
+		    for arg in args.args.iter_mut() {
+			match arg {
+			    syn::GenericArgument::Type(t) => transform_self(impl_name, t),
+			    _ => (),
+			}
+		    }
+		},
+		Parenthesized(args) => {
+		    panic!("{:?}", args);
+
+		},
+	    }
+	}
+    }
+    if let syn::Type::Reference(r) = farg {
+	transform_self(impl_name, &mut r.elem);
+    }
 }
