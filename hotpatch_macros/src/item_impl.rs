@@ -264,7 +264,7 @@ fn transform_self(impl_name: &str, farg: &mut syn::Type) {
 					.help("Patchable items cannot be generic")
 					.emit();
 				},
-				Const(_c) => todo!("The hotpatch dev was lazy and doesn't want to figure out how to do recursive type analysis on const generics. File an issue on the github repo."),
+				Const(_c) => todo!("The hotpatch dev was lazy and doesn't want to figure out how to do recursive type analysis on const generics. File an issue on the github repo: https://github.com/Shizcow/hotpatch."),
 				Lifetime(_) => (),
 			    }
 			}
