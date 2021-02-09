@@ -4,6 +4,7 @@ use quote::quote;
 use quote::ToTokens;
 use syn::{FnArg::Typed, Ident, ImplItemConst, ImplItemMethod, ItemImpl, ReturnType::Type};
 use std::sync::RwLock;
+use syn::spanned::Spanned;
 
 use crate::EXPORTNUM;
 lazy_static::lazy_static! {
@@ -237,10 +238,11 @@ fn gather_info(item: ImplItemMethod) -> (syn::Type, syn::Type, ImplItemMethod, I
     (fargs, output_type, item, fn_name, sigtext)
 }
 
-
+// TODO: is there a crate for this?
 fn transform_self(impl_name: &str, farg: &mut syn::Type) {
+    use syn::Type::*;
     match farg {
-	syn::Type::Path(p) => {
+	Path(p) => {
 	    if p.path.segments.first().map(|s| s.ident.to_string()) == Some("Self".to_owned()) {
 		let span = p.path.segments.first().unwrap().ident.span();
 		p.path.segments.first_mut().unwrap().ident = Ident::new(&impl_name, span);
@@ -281,10 +283,23 @@ fn transform_self(impl_name: &str, farg: &mut syn::Type) {
 		}
 	    }
 	},
-	syn::Type::Reference(r) => {
+	Reference(r) => {
 	    transform_self(impl_name, &mut r.elem);
 	},
-	syn::Type::TraitObject(d) => {
+	Group(g) => {
+	    transform_self(impl_name, &mut g.elem);
+	},
+	BareFn(b) => {
+	    for input in b.inputs.iter_mut() {
+		transform_self(impl_name, &mut input.ty);
+	    }
+	    use syn::ReturnType::*;
+	    match &mut b.output {
+		Type(_, t) => transform_self(impl_name, t),
+		Default => (),
+	    }
+	},
+	TraitObject(d) => {
 	    for bound in d.bounds.iter_mut() {
 		if let syn::TypeParamBound::Trait(t) = bound {
 		    // I can't think of a less stupid way to do this
@@ -299,6 +314,46 @@ fn transform_self(impl_name: &str, farg: &mut syn::Type) {
 		}
 	    }
 	},
-	_ => (),
+	ImplTrait(i) => {
+	    for bound in i.bounds.iter_mut() {
+		if let syn::TypeParamBound::Trait(t) = bound {
+		    // I can't think of a less stupid way to do this
+		    let mut tpath = syn::Type::Path(syn::TypePath {
+			qself: None,
+			path: t.path.clone(),
+		    });
+		    transform_self(impl_name, &mut tpath);
+		    if let syn::Type::Path(p) = tpath {
+			t.path = p.path;
+		    }
+		}
+	    }
+	},
+	Array(a) => {
+	    transform_self(impl_name, &mut a.elem);
+	},
+	Infer(_) => (),
+	Macro(m) => 
+	    m.mac.path.span().unwrap().error("Can't hotpatch an associated function/method with macro type arguements")
+	    .help("Try this as a bare function (not inside an impl) instead")
+	    .note("hotpatch is trying to make `Self` as a type work and can't guarentee this will pass through with macros")
+	    .emit(),
+	Never(_) => (),
+	Paren(p) => {
+	    transform_self(impl_name, &mut p.elem);
+	},
+	Ptr(p) => {
+	    transform_self(impl_name, &mut p.elem);
+	},
+	Slice(p) => {
+	    transform_self(impl_name, &mut p.elem);
+	},
+	Tuple(t) => {
+	    for elem in t.elems.iter_mut() {
+		transform_self(impl_name, elem);
+	    }
+	},
+	Verbatim(_) => (), // not found in normal source code
+	_ => (), // nonexhaustive
     }
 }
