@@ -52,18 +52,12 @@ pub fn patchable(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
     };
 
     let mname = match modpath {
-        Some(mpath) if !mpath.starts_with("\"") && !mpath.ends_with("\"") => {
-            quote! {concat!("::!__function:", #mpath)}
-        }
-        Some(mpath) => {
-            let s = mpath[1..mpath.len() - 1].to_string();
+        Some(mpath) => (quote! {concat!("::", #mpath)}),
+        None => {
             quote! {
-                concat!(module_path!(), "::", #s)
+                concat!(module_path!(), "::", stringify!(#item_name))
             }
         }
-        None => quote! {
-            concat!(module_path!(), "::!__function:", stringify!(#item_name))
-        },
     };
 
     TokenStream::from(quote! {
@@ -110,18 +104,12 @@ pub fn patch(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
     let hotpatch_name = Ident::new(&format!("__HOTPATCH_EXPORT_{}", exnum), Span::call_site());
 
     let mname = match modpath {
-        Some(mpath) if !mpath.starts_with("\"") && !mpath.ends_with("\"") => {
-            quote! {concat!("::!__function:", #mpath)}
-        }
-        Some(mpath) => {
-            let s = mpath[1..mpath.len() - 1].to_string();
+        Some(mpath) => (quote! {concat!("::", #mpath)}),
+        None => {
             quote! {
-                concat!(module_path!(), "::", #s)
+                concat!(module_path!(), "::", stringify!(#fn_name))
             }
         }
-        None => quote! {
-            concat!(module_path!(), "::!__function:", stringify!(#fn_name))
-        },
     };
 
     TokenStream::from(quote! {
@@ -135,7 +123,7 @@ pub fn patch(fn_item: ItemFn, modpath: Option<String>) -> TokenStream {
     })
 }
 
-pub fn gather_info(item: ItemFn) -> (syn::Type, syn::Type, Ident, String, ItemFn) {
+fn gather_info(item: ItemFn) -> (syn::Type, syn::Type, Ident, String, ItemFn) {
     let fn_name = item.sig.ident.clone();
     let output_type = if let Type(_, t) = &item.sig.output {
         *(t.clone())

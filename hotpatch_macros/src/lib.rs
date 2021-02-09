@@ -81,15 +81,13 @@ fn get_modpath(attr: TokenStream) -> Result<Option<String>, ()> {
         Ok(None)
     } else {
         let s = attr.to_string();
-        if !s.starts_with("\"") && !s.ends_with("\"") {
-            let path = syn::parse::<Path>(attr.clone());
-            if path.is_err() {
-                proc_macro::Span::call_site().error("Expected module path")
-		    .help("Just use #[patchable]; it's already module aware.")
-		    .help("If you're trying to spoof a module path, the supplied arguement is an invalid path")
-		    .emit();
-                return Err(());
-            }
+        let path = syn::parse::<Path>(attr.clone());
+        if path.is_err() {
+            proc_macro::Span::call_site().error("Expected module path")
+		.help("Just use #[patchable]; it's already module aware.")
+		.help("If you're trying to spoof a module path, the supplied arguement is an invalid path")
+		.emit();
+            return Err(());
         }
         Ok(Some(s.replace(" ", "")))
     }
