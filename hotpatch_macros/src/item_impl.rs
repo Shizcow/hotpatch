@@ -239,49 +239,60 @@ fn gather_info(item: ImplItemMethod) -> (syn::Type, syn::Type, ImplItemMethod, I
 
 
 fn transform_self(impl_name: &str, farg: &mut syn::Type) {
-    if let syn::Type::Path(p) = farg {
-	if p.path.segments.first().map(|s| s.ident.to_string()) == Some("Self".to_owned()) {
-	    let span = p.path.segments.first().unwrap().ident.span();
-	    p.path.segments.first_mut().unwrap().ident = Ident::new(&impl_name, span);
-	}
-
-	// generics too
-	use syn::PathArguments::*;
-	for seg in p.path.segments.iter_mut() {
-	    match &mut seg.arguments {
-		None => (),
-		AngleBracketed(args) => {
-		    for arg in args.args.iter_mut() {
-			match arg {
-			    syn::GenericArgument::Type(t) => transform_self(impl_name, t),
-			    syn::GenericArgument::Binding(b) => transform_self(impl_name, &mut b.ty),
-			    _ => (),
-			}
-		    }
-		},
-		Parenthesized(args) => {
-		    panic!("{:?}", args);
-
-		},
+    match farg {
+	syn::Type::Path(p) => {
+	    if p.path.segments.first().map(|s| s.ident.to_string()) == Some("Self".to_owned()) {
+		let span = p.path.segments.first().unwrap().ident.span();
+		p.path.segments.first_mut().unwrap().ident = Ident::new(&impl_name, span);
 	    }
-	}
-    }
-    if let syn::Type::Reference(r) = farg {
-	transform_self(impl_name, &mut r.elem);
-    }
-    if let syn::Type::TraitObject(d) = farg {
-	for bound in d.bounds.iter_mut() {
-	    if let syn::TypeParamBound::Trait(t) = bound {
-		// I can't think of a less stupid way to do this
-		let mut tpath = syn::Type::Path(syn::TypePath {
-		    qself: None,
-		    path: t.path.clone(),
-		});
-		transform_self(impl_name, &mut tpath);
-		if let syn::Type::Path(p) = tpath {
-		    t.path = p.path;
+
+	    // generics too
+	    use syn::PathArguments::*;
+	    for seg in p.path.segments.iter_mut() {
+		match &mut seg.arguments {
+		    None => (),
+		    AngleBracketed(args) => {
+			for arg in args.args.iter_mut() {
+			    use syn::GenericArgument::*;
+			    match arg {
+				Type(t) => transform_self(impl_name, t),
+				Binding(b) => transform_self(impl_name, &mut b.ty),
+				Constraint(c) => {
+				    c.ident.span().unwrap().error("Can't hotpatch a non-fully-defined function")
+					.help("Trait bounds in functions are not allowed")
+					.help("Patchable items cannot be generic")
+					.emit();
+				},
+				Const(_c) => todo!("The hotpatch dev was lazy and doesn't want to figure out how to do recursive type analysis on const generics. File an issue on the github repo."),
+				Lifetime(_) => (),
+			    }
+			}
+		    },
+		    Parenthesized(args) => {
+			panic!("{:?}", args);
+
+		    },
 		}
 	    }
-	}
+	},
+	syn::Type::Reference(r) => {
+	    transform_self(impl_name, &mut r.elem);
+	},
+	syn::Type::TraitObject(d) => {
+	    for bound in d.bounds.iter_mut() {
+		if let syn::TypeParamBound::Trait(t) = bound {
+		    // I can't think of a less stupid way to do this
+		    let mut tpath = syn::Type::Path(syn::TypePath {
+			qself: None,
+			path: t.path.clone(),
+		    });
+		    transform_self(impl_name, &mut tpath);
+		    if let syn::Type::Path(p) = tpath {
+			t.path = p.path;
+		    }
+		}
+	    }
+	},
+	_ => (),
     }
 }
