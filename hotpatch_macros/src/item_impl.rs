@@ -3,8 +3,12 @@ use proc_macro2::Span;
 use quote::quote;
 use quote::ToTokens;
 use syn::{FnArg::Typed, Ident, ImplItemConst, ImplItemMethod, ItemImpl, ReturnType::Type};
+use std::sync::RwLock;
 
 use crate::EXPORTNUM;
+lazy_static::lazy_static! {
+    static ref WRAPPER_NUM: RwLock<usize> = RwLock::new(0);
+}
 
 pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream {
     let mut tt = proc_macro2::TokenStream::new();
@@ -19,6 +23,14 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
             match item {
                 syn::ImplItem::Method(m) => {
                     let (mut fargs, mut output_type, mut item, mut fn_name, sigtext) = gather_info(m);
+
+		    let wrapper_num;
+		    {
+			// scope is used so EXPORTNUM is unlocked faster
+			let mut r = WRAPPER_NUM.write().unwrap();
+			wrapper_num = *r;
+			*r += 1;
+		    }
 
 		    // transform arguements from Self notation to concrete type (only in inetermediate variables)
 		    if let syn::Type::Tuple(ref mut t) = fargs {
@@ -56,7 +68,7 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
                         .attrs,
                     );
                     let item_name = fn_name.clone();
-                    fn_name = Ident::new("__hotpatch_internal_staticwrap", Span::call_site());
+                    fn_name = Ident::new(&format!("__hotpatch_internal_staticwrap_{}", wrapper_num), Span::call_site());
                     item.sig.ident = fn_name.clone();
 		    let mname = match &modpath {
 			Some(mpath) => 
@@ -75,7 +87,7 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
 				    dyn Fn#fargs -> #output_type + Send + Sync + 'static,
 				> = hotpatch::Patchable::__new(|| {
 				    hotpatch::Patchable::__new_internal(
-					Box::new(#self_ty ::__hotpatch_internal_staticwrap)
+					Box::new(#self_ty::#fn_name)
 					    as Box<dyn Fn#fargs -> #output_type + Send + Sync + 'static>,
 					concat!(module_path!(), "::", #mname),
 					#sigtext,
