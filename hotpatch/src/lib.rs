@@ -38,6 +38,54 @@
 //! ```
 //! For more examples see the [git repo](https://github.com/Shizcow/hotpatch).
 //!
+//! ## Methods and Free Functions
+//!
+//! `hotpatch` also works with methods.
+//!
+//! **Note:** `hotpatch` currently only works with free functions (methods without a self parameter).
+//! Actual method support is in progress and expected in the next version.
+//!
+//! **Note:** [`#[patchable]`](patchable) and [`#[patch]`](patch) must be placed __outside__ of `impl` bodies!
+//!
+//! ### Example
+//! Setting up is done like so:
+//! ```
+//! // main.rs
+//! use hotpatch::*;
+//!
+//! struct Foo {}
+//! #[patchable]
+//! impl Foo {
+//!     pub fn bar() {
+//!         println!("I can be changed!");
+//!     }
+//! }
+//! ```
+//! Patches are declared like this:
+//! ```
+//! struct Foo {}
+//!
+//! #[patch]
+//! impl Foo {
+//!     /// remember, #[patch] is top-level
+//!     pub fn bar() {
+//!         println!("this is external!");
+//!     }
+//! }
+//! ```
+//!
+//! Finally, patching is done as so.
+//! ```
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     Foo::bar();
+//!     Foo::bar.hotpatch_fn(|| println!("this is patch!"))?;
+//!     Foo::bar();
+//!     Foo::bar.hotpatch_lib("target/debug/libmethods_obj.so")?;
+//!     Foo::bar();
+//!     Ok(())
+//! }
+//! ```
+//!
 //! ## Features
 //! For reference, this crate recognizes the following features:
 //! - `allow-main`: Allow setting `main` as [`#[patchable]`](patchable). Only useful if using `#[start]` or `#[main]`.
@@ -379,4 +427,20 @@ va_largesig! { ($va_len:tt), ($($va_idents:ident),*), ($($va_indices:tt),*),
                     inner.upcast_self().call(args)
                 }
                 }
+}
+
+// methods stuff
+pub struct MutConst<T: 'static> {
+    f: fn() -> &'static T,
+}
+impl<T> MutConst<T> {
+    pub const fn new(f: fn() -> &'static T) -> Self {
+        Self { f }
+    }
+}
+impl<T> std::ops::Deref for MutConst<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        (self.f)()
+    }
 }

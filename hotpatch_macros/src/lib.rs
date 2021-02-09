@@ -3,11 +3,11 @@
 //! You probably want documentation for the [`hotpatch`](https://docs.rs/hotpatch) crate.
 
 use proc_macro::TokenStream;
-use quote::ToTokens;
 use std::sync::RwLock;
-use syn::{parse::Nothing, ItemFn, Path};
+use syn::{parse::Nothing, ItemFn, ItemImpl, Path};
 
 mod item_fn;
+mod item_impl;
 
 lazy_static::lazy_static! {
     static ref EXPORTNUM: RwLock<usize> = RwLock::new(0);
@@ -35,8 +35,10 @@ pub fn patchable(attr: TokenStream, input: TokenStream) -> TokenStream {
     if modpath.is_err() {
         return TokenStream::new();
     }
-    if let Ok(fn_item) = syn::parse::<ItemFn>(input) {
-        item_fn::patchable(fn_item, modpath.unwrap())
+    if let Ok(item) = syn::parse::<ItemFn>(input.clone()) {
+        item_fn::patchable(item, modpath.unwrap())
+    } else if let Ok(item) = syn::parse::<ItemImpl>(input) {
+        item_impl::patchable(item, modpath.unwrap())
     } else {
         panic!("I can't hotpatch this yet!");
     }
@@ -65,10 +67,12 @@ pub fn patch(attr: TokenStream, input: TokenStream) -> TokenStream {
     if modpath.is_err() {
         return TokenStream::new();
     }
-    if let Ok(fn_item) = syn::parse::<ItemFn>(input) {
+    if let Ok(fn_item) = syn::parse::<ItemFn>(input.clone()) {
         item_fn::patch(fn_item, modpath.unwrap())
+    } else if let Ok(item) = syn::parse::<ItemImpl>(input) {
+        item_impl::patch(item, modpath.unwrap())
     } else {
-        panic!("I can't patch this yet!");
+        panic!("I can't turn this into a patch yet!");
     }
 }
 
@@ -76,6 +80,7 @@ fn get_modpath(attr: TokenStream) -> Result<Option<String>, ()> {
     if syn::parse::<Nothing>(attr.clone()).is_ok() {
         Ok(None)
     } else {
+        let s = attr.to_string();
         let path = syn::parse::<Path>(attr.clone());
         if path.is_err() {
             proc_macro::Span::call_site().error("Expected module path")
@@ -84,8 +89,6 @@ fn get_modpath(attr: TokenStream) -> Result<Option<String>, ()> {
 		.emit();
             return Err(());
         }
-        let mut ts = proc_macro2::TokenStream::new();
-        path.unwrap().to_tokens(&mut ts);
-        Ok(Some(ts.to_string().replace(" ", "")))
+        Ok(Some(s.replace(" ", "")))
     }
 }
