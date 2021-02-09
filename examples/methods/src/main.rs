@@ -19,10 +19,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let f = Foo::new();
     println!("First description: {}", f.description);
 
-    // Foo::bar();
-    // Foo::bar.hotpatch_fn(|| println!("this is patch!"))?;
-    // Foo::bar();
-    // Foo::bar.hotpatch_lib("target/debug/libmethods_obj.so")?;
-    // Foo::bar();
+    Foo::new.hotpatch_fn(|| Foo {
+        description: "Created with an anonymous definition",
+    })?;
+    let f = Foo::new();
+    println!("Second description: {}", f.description);
+
+    Foo::new.hotpatch_lib("target/debug/libmethods_obj.so")?;
+    let f = Foo::new();
+    println!("Third description: {}", f.description);
     Ok(())
 }

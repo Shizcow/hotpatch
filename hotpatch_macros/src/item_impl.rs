@@ -32,6 +32,7 @@ pub fn patchable(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream 
 			*r += 1;
 		    }
 
+		    // TODO: this is done in a few places; turn into a function
 		    // transform arguements from Self notation to concrete type (only in inetermediate variables)
 		    if let syn::Type::Tuple(ref mut t) = fargs {
 			for farg in t.elems.iter_mut() {
@@ -124,7 +125,26 @@ pub fn patch(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream {
         .map(|item| {
             match item {
                 syn::ImplItem::Method(m) => {
-                    let (fargs, output_type, _item, fn_name, sigtext) = gather_info(m.clone());
+                    let (mut fargs, mut output_type, _item, fn_name, sigtext) = gather_info(m.clone());
+		    
+		    // transform arguements from Self notation to concrete type (only in inetermediate variables)
+		    if let syn::Type::Tuple(ref mut t) = fargs {
+			for farg in t.elems.iter_mut() {
+			    if let syn::Type::Path(p) = farg {
+				if p.path.segments.first().map(|s| s.ident.to_string()) == Some("Self".to_owned()) {
+				    let span = p.path.segments.first().unwrap().ident.span();
+				    p.path.segments.first_mut().unwrap().ident = Ident::new(&impl_name, span);
+				}
+			    }
+			}
+		    }
+		    // same but for return value
+		    if let syn::Type::Path(ref mut p) = output_type {
+			if p.path.segments.first().map(|s| s.ident.to_string()) == Some("Self".to_owned()) {
+			    let span = p.path.segments.first().unwrap().ident.span();
+			    p.path.segments.first_mut().unwrap().ident = Ident::new(&impl_name, span);
+			}
+		    }
 
 		    let exnum;
 		    {
@@ -182,7 +202,7 @@ pub fn patch(mut fn_item: ItemImpl, modpath: Option<String>) -> TokenStream {
     })
 }
 
-pub fn gather_info(item: ImplItemMethod) -> (syn::Type, syn::Type, ImplItemMethod, Ident, String) {
+fn gather_info(item: ImplItemMethod) -> (syn::Type, syn::Type, ImplItemMethod, Ident, String) {
     let fn_name = item.sig.ident.clone();
     let output_type = if let Type(_, t) = &item.sig.output {
         *(t.clone())
