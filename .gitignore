@@ -9,3 +9,5 @@ Cargo.lock
 **/*Cargo.lock
 
 **/*.rs.bk
+
+**/cargo-timing*.html
