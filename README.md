@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   foo(); // does nothing
   foo.hotpatch_lib("libsomething.so")?;
   foo(); // does something totally different!
-  foo.hotpatch_fn(|| println!("Dyamic!"))?;
+  foo.hotpatch_fn(|| println!("Dynamic!"))?;
   foo(); // even more modification!
   Ok(())
 }
@@ -49,6 +49,7 @@ For more information, see the [docs](https://docs.rs/hotpatch).
 This crate is still has a long way to go before being "finished". Below are some items left to do. Submit an issue or PR to this section for feature requests!  
 - `no_std` and use features to give the widest possible functionality
   - probably will need to move back to `lazy_static`
+- wasm support
 - methods (in progress)
 - `#[patchable] ||()` to generate from a closure (is this even possible?)
 - lower compile times
