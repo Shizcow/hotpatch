@@ -11,6 +11,16 @@ Key features:
 - Works for functions of any signature
 - Namespace aware
 
+## Nightly Requirement
+This crate is nightly only. A list of features it uses are as follows:
+- `unboxed_closures`
+- `fn_traits`
+- `const_fn`
+- `const_fn_fn_ptr_basics`
+- `proc_macro_diagnostic`
+
+Most of the above features are critical to function. As such, this crate will remain nightly only until more of the above are finished.
+
 ## Short Example
 The following shows how
 dead-simple this crate is to use:
@@ -54,4 +64,3 @@ This crate is still has a long way to go before being "finished". Below are some
 - `#[patchable] ||()` to generate from a closure (is this even possible?)
 - lower compile times
   - include only necessary features for sub-dependencies
-- properly document nightly feature requirements
