@@ -1,3 +1,6 @@
+### State of this project
+Currently waiting for [inherent traits](https://github.com/rust-lang/rfcs/pull/2375). There has been some action here recently, and the RFC looks like it's going to be merged soon. Given that I'm busy with school anyway, I'll be holding off on continuing development until inherent traits are in nightly.
+
 # hotpatch
 [![crates.io](https://img.shields.io/crates/v/hotpatch.svg)](https://crates.io/crates/hotpatch)
 [![docs.rs](https://docs.rs/hotpatch/badge.svg)](https://docs.rs/hotpatch)
