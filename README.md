@@ -48,7 +48,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Don't hotpatch the function you're currently in, or any of its parents.
 
 Because `hotpatch` doesn't allow multiple function definitions to be in
-affect at the same time, this will cause a deadlock.
+affect at the same time, this will cause a deadlock. `try` variants
+exist which will return an error if a deadlock would occur.
 
 It is possible to do this with the `force` functions, however they are
 `unsafe`, as in a multithreaded enironment this could cause multiple
